@@ -4,6 +4,8 @@ pi-statusline: a configurable status footer extension for [pi](https://github.co
 
 ## Commands
 
+- `nix develop` — enter the pinned Node 24 development shell; Git is expected from the host
+- `npm ci` — install the exact JavaScript/TypeScript dependencies from `package-lock.json`
 - `npm test` — run tests (`node --test test/*.test.ts`)
 - `npm run typecheck` — `tsc --noEmit`
 - `pi -e .` — try the extension locally without installing
