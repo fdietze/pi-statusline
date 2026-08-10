@@ -21,11 +21,18 @@ Usage is a thin continuous line with rounded half-line ends and a dark-gray trac
 pi install npm:@shvax/pi-statusline
 ```
 
-Try a local checkout without installing it:
+Try only a local checkout without installed extensions:
 
 ```bash
-pi -e .
+pi --no-extensions -e .
 ```
+
+This fork also commits a project-local `.pi/settings.json`. When Pi is launched
+from the repository and the project is trusted, that configuration disables the
+globally installed `futile/pi-statusline` extension and loads the working tree
+instead. Other installed extensions remain available, and Pi launched outside
+the repository continues to use the commit-pinned Git package. Run `npm ci`
+first so the working tree has its runtime dependencies.
 
 ## Segments
 

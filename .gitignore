@@ -6,7 +6,8 @@
 .beads/proxieddb/
 
 # Pi / ce-workflow runtime artifacts (added at init)
-.pi/
+.pi/*
+!.pi/settings.json
 .pi-subagents/
 
 

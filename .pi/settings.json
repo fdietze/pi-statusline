@@ -1,0 +1,12 @@
+{
+  "packages": [
+    {
+      "source": "git:github.com/futile/pi-statusline",
+      "autoload": false,
+      "extensions": [
+        "-extensions/statusline.ts"
+      ]
+    },
+    ".."
+  ]
+}

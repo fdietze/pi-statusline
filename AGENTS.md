@@ -8,7 +8,8 @@ pi-statusline: a configurable status footer extension for [pi](https://github.co
 - `npm ci` — install the exact JavaScript/TypeScript dependencies from `package-lock.json`
 - `npm test` — run tests (`node --test test/*.test.ts`)
 - `npm run typecheck` — `tsc --noEmit`
-- `pi -e .` — try the extension locally without installing
+- `pi --no-extensions -e .` — try only this extension from the working tree
+- `pi` — from this repository, `.pi/settings.json` replaces an installed `futile/pi-statusline` with the working tree after project trust is approved
 
 ## Layout
 
