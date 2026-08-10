@@ -149,16 +149,17 @@ test("configured extension status keys align right without moving other statuses
   const snapshot = {
     cwd: "/tmp/project",
     extensionStatuses: [
-      { key: "fast", value: "FAST" },
+      { key: "fast", value: "fast" },
       { key: "mcp", value: styledMcp },
     ],
   } as never;
 
+  const decoratedFast = "󱐋 fast";
   const decoratedMcp = `🔌 ${styledMcp}`;
-  const wide = renderMainLine(settings, snapshot, 24);
-  assert.equal(wide, `FAST${" ".repeat(10)}${decoratedMcp}`);
-  assert.equal(visibleWidth(wide), 24);
-  assert.equal(renderMainLine(settings, snapshot, 10), "FAST", "the right status drops before left content");
+  const wide = renderMainLine(settings, snapshot, 26);
+  assert.equal(wide, `${decoratedFast}${" ".repeat(10)}${decoratedMcp}`);
+  assert.equal(visibleWidth(wide), 26);
+  assert.equal(renderMainLine(settings, snapshot, 10), decoratedFast, "the right status drops before left content");
   assert.equal(renderMainLine(settings, {
     cwd: "/tmp/project",
     extensionStatuses: [{ key: "mcp", value: styledMcp }],
@@ -169,7 +170,7 @@ test("configured extension status keys align right without moving other statuses
   const wideGlyphLine = renderMainLine(settings, {
     cwd: "/tmp/project",
     extensionStatuses: [
-      { key: "fast", value: "FAST" },
+      { key: "review", value: "FAST" },
       { key: "mcp", value: styledWideMcp },
     ],
   } as never, 24);
@@ -213,12 +214,42 @@ test("version 1 settings drop migrated statuses atomically at narrow widths", ()
   const line = renderMainLine(settings, {
     cwd: "/tmp/project",
     contextUsage: { percent: 20, tokens: 20_000, contextWindow: 100_000 },
-    extensionStatuses: [{ key: "fast", value: "\x1b[31mFAST-LONG-STATUS\x1b[0m" }],
+    extensionStatuses: [{ key: "review", value: "\x1b[31mFAST-LONG-STATUS\x1b[0m" }],
   }, 20);
 
   assert.ok(visibleWidth(line) <= 20, line);
   assert.ok(line.includes("20.0%/100K"), line);
   assert.equal(line.includes("FA"), false, `status must drop as a segment, not truncate: ${line}`);
+});
+
+test("Fast status is inline after effort with a Nerd glyph and warning-colored text", () => {
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
+  settings.providers.enabled = false;
+  for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
+  settings.segments.effort = true;
+  settings.segments.extensions = true;
+  settings.segments.context = true;
+  settings.icons.symbols.fast = "󱐋";
+  const theme = {
+    fg: (role: string, text: string) => `<${role}>${text}</${role}>`,
+  } as never;
+  const line = renderMainLine(settings, {
+    cwd: "/tmp/nixos",
+    model: { id: "gpt-5.6-sol", provider: "openai-codex", reasoning: true },
+    thinkingLevel: "high",
+    contextUsage: { percent: 13.2, tokens: 36_000, contextWindow: 272_000 },
+    subscription: true,
+    extensionStatuses: [
+      { key: "review", value: "REVIEW" },
+      { key: "fast", value: "fast" },
+      { key: "mcp", value: "MCP 0/3" },
+    ],
+  }, 200, theme);
+
+  assert.match(line, /<muted>🧠 high<\/muted><dim> > <\/dim>REVIEW 󱐋 <warning>fast<\/warning><dim> > <\/dim>/);
+  assert.ok(line.endsWith("🔌 MCP 0/3"), line);
+  assert.equal((line.match(/󱐋/g) ?? []).length, 1, line);
+  assert.equal((line.match(/🔌/g) ?? []).length, 1, line);
 });
 
 test("default separator leaves space before each following emoji segment", () => {
@@ -237,6 +268,8 @@ test("default separator leaves space before each following emoji segment", () =>
     assert.ok(line.includes(` > ${glyph}`), `missing separator space before ${glyph}: ${line}`);
     assert.equal(line.includes(`>${glyph}`), false, `separator touches ${glyph}: ${line}`);
   }
+  assert.ok(line.includes("🪟 13.2%/272K"), line);
+  assert.equal(line.includes("🪟  13.2%/272K"), false, line);
 });
 
 test("bar thresholds and truecolor toggle control rendered colors", () => {

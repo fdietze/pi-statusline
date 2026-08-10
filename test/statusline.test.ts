@@ -323,7 +323,7 @@ test("renders emoji segments with themed semantic colors", async () => {
   const initial = footer!.render(500)[0]!;
   // Subscription (openai-codex + OAuth) hides the throughput ledger at idle; quota bars carry it.
   assert.equal(initial.includes(" t/s"), false);
-  for (const label of ["🪟  </muted><success>55.0%/200K"]) assert.ok(initial.includes(label));
+  for (const label of ["🪟 </muted><success>55.0%/200K"]) assert.ok(initial.includes(label));
   assert.ok(initial.includes("📁 pi-statusline</muted><dim> > </dim><accent>main</accent> <warning>● 2</warning> <warning>↓1</warning> <accent>↑2</accent>"));
   assert.deepEqual(execCalls[0], ["git", ["status", "--porcelain=v2", "--branch", "-z"], { cwd: process.cwd(), timeout: 2_000 }]);
   assert.equal(initial.includes("5h"), false);

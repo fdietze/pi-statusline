@@ -91,10 +91,10 @@ const GIT_ROLES: Record<GitTokenKind, "accent" | "success" | "warning" | "error"
 };
 
 const ICON_PRESETS: Record<StatuslineSettings["icons"]["style"], Record<string, string>> = {
-  emoji: { project: "📁", model: "🤖", thinking: "🧠", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌" },
+  emoji: { project: "📁", model: "🤖", thinking: "🧠", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌", fast: "󱐋" },
   unicode: { project: "◆", model: "◇", thinking: "◌", context: "▣", throughput: "↕", time: "◷" },
   ascii: { project: "P", model: "M", thinking: "T", context: "C", throughput: "R", time: "@" },
-  nerdfont: { project: "󰉋", model: "󰧑", thinking: "󰔟", context: "󰍛", throughput: "󰓅", time: "󰥔" },
+  nerdfont: { project: "󰉋", model: "󰧑", thinking: "󰔟", context: "󰍛", throughput: "󰓅", time: "󰥔", fast: "󱐋" },
   minimal: { project: "·", model: "·", thinking: "·", context: "·", throughput: "·", time: "·" },
   none: {},
   custom: {},
@@ -330,7 +330,7 @@ export function renderMainLine(
   const rightAlignedKeys = new Set(rightAlignedStatusKeys);
   const extensionStatuses = normalizedExtensionStatuses
     .filter(({ key }) => !rightAlignedKeys.has(key))
-    .map(({ value }) => value)
+    .map(({ key, value }) => key === "fast" ? withSpace(key, paint("warning", value)) : value)
     .join(" ");
   const statusesByKey = new Map(normalizedExtensionStatuses.map(({ key, value }) => [key, value]));
 
@@ -346,7 +346,8 @@ export function renderMainLine(
     ? rightAlignedStatusKeys
       .map((key) => {
         const value = statusesByKey.get(key);
-        return value === undefined ? undefined : withSpace(key, value);
+        if (value === undefined) return undefined;
+        return withSpace(key, key === "fast" ? paint("warning", value) : value);
       })
       .filter((value): value is string => value !== undefined)
       .join(" ")
@@ -370,7 +371,7 @@ export function renderMainLine(
     context: () => {
       if (!context) return "";
       const glyph = icon(settings, "context");
-      const head = paint("muted", glyph ? `${glyph}  ` : "");
+      const head = paint("muted", glyph ? `${glyph} ` : "");
       return `${head}${paint(contextRole(context), context.label)}`;
     },
     session: () => session,
