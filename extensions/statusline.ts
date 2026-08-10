@@ -54,6 +54,7 @@ export default function statusline(
   let sessionActive = false;
   let sessionEpoch = 0;
   let turnActive = false;
+  let backgroundActive = false;
   const activitySources = new AgentActivitySources();
   let progressTerminal: ProgressTerminal | undefined;
   let progressMultiplexer: TerminalProgressMultiplexer | undefined;
@@ -68,8 +69,8 @@ export default function statusline(
 
   const timeLabel = () => {
     const snapshot = meter.snapshot();
-    const liveMs = meter.liveElapsedMs();
-    return snapshot.lastTurnMs === undefined && liveMs === 0
+    const liveMs = meter.liveActiveMs();
+    return snapshot.activeMs === 0 && liveMs === 0 && snapshot.lastTurnMs === undefined
       ? ""
       : formatTime(
         snapshot.activeMs + liveMs,
@@ -95,17 +96,26 @@ export default function statusline(
         lastRenderedTime = next;
         requestRender?.();
       }
-      if (!turnActive && !hasUpcomingReset()) stopTick();
+      const workNeedsTick = (settings.segments.time && (turnActive || backgroundActive))
+        || (settings.segments.throughput && turnActive);
+      if (!workNeedsTick && !hasUpcomingReset()) stopTick();
     }, 1_000);
     tick.unref?.();
   };
   const syncTick = () => {
     const shouldTick = sessionActive && settings.enabled
-      && ((turnActive && (settings.segments.time || settings.segments.throughput)) || (settings.segments.session && hasUpcomingReset()));
+      && ((settings.segments.time && (turnActive || backgroundActive))
+        || (settings.segments.throughput && turnActive)
+        || (settings.segments.session && hasUpcomingReset()));
     if (shouldTick && !tick) startTick();
     else if (!shouldTick && tick) stopTick();
   };
 
+  const syncAggregateActivity = (at?: number) => {
+    meter.setActive(turnActive || backgroundActive, at);
+    syncTick();
+    requestRender?.();
+  };
   const disposeProgressMultiplexer = () => {
     progressMultiplexer?.dispose();
     progressMultiplexer = undefined;
@@ -125,7 +135,10 @@ export default function statusline(
   const extensionEvents = (pi as unknown as { events?: ExtensionEventBus }).events;
   extensionEvents?.on(AGENT_ACTIVITY_UPDATE_EVENT, (data) => {
     if (!activitySources.update(data)) return;
-    progressMultiplexer?.setExternal(activitySources.snapshot().terminalProgress);
+    const aggregate = activitySources.snapshot();
+    backgroundActive = aggregate.active;
+    progressMultiplexer?.setExternal(aggregate.terminalProgress);
+    syncAggregateActivity();
   });
 
   const refreshGit = async (ctx: ExtensionContext, epoch = sessionEpoch) => {
@@ -387,7 +400,7 @@ export default function statusline(
             pending: ctx.hasPendingMessages(),
             subscription,
             turnActive,
-            meter: { ...snapshot, activeMs: snapshot.activeMs + meter.liveElapsedMs() },
+            meter: { ...snapshot, activeMs: snapshot.activeMs + meter.liveActiveMs() },
             lastContextChars,
             totals,
             sessionWindows: limits,
@@ -497,7 +510,7 @@ export default function statusline(
           extensionStatuses: liveExtensionStatuses,
           throughput: { inputRate: snapshot.avgInputRate, outputRate: snapshot.avgOutputRate },
           sessionWindows: limits,
-          activeMs: snapshot.activeMs + meter.liveElapsedMs(),
+          activeMs: snapshot.activeMs + meter.liveActiveMs(),
           elapsedMs: draft.extras.sessionElapsed ? snapshot.elapsedMs : undefined,
           lastTurnMs: draft.extras.lastTurn ? snapshot.lastTurnMs : undefined,
           gitBranch: liveGitBranch,
@@ -585,6 +598,7 @@ export default function statusline(
     const epoch = ++sessionEpoch;
     sessionActive = true;
     turnActive = false;
+    backgroundActive = false;
     activitySources.clear();
     disposeProgressMultiplexer();
     stopTick();
@@ -633,9 +647,11 @@ export default function statusline(
   });
 
   pi.on("session_shutdown", () => {
+    meter.setActive(false);
     sessionActive = false;
     sessionEpoch++;
     turnActive = false;
+    backgroundActive = false;
     activitySources.clear();
     progressMultiplexer?.setExternal(false);
     disposeProgressMultiplexer();
@@ -649,8 +665,7 @@ export default function statusline(
   pi.on("turn_start", (event) => {
     turnActive = true;
     meter.startTurn(event.timestamp);
-    syncTick();
-    requestRender?.();
+    syncAggregateActivity(event.timestamp);
   });
 
   pi.on("message_update", (event) => {
@@ -676,7 +691,7 @@ export default function statusline(
       const output = usage.output || estimateTokens(sumTextLength(content));
       meter.finishTurn({ input, output });
     }
-    syncTick();
+    syncAggregateActivity();
     void refreshCodexLimits(ctx);
     await refreshGit(ctx);
     requestRender?.();
@@ -685,8 +700,7 @@ export default function statusline(
   pi.on("agent_settled", () => {
     turnActive = false;
     meter.finalizeActiveTurn();
-    syncTick();
-    requestRender?.();
+    syncAggregateActivity();
   });
 
   pi.on("after_provider_response", (event, ctx) => {

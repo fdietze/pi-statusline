@@ -6,6 +6,7 @@ import test, { after } from "node:test";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import statusline from "../extensions/statusline.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
+import { DEFAULT_STATUSLINE_SETTINGS } from "../src/settings/defaults.ts";
 
 // The interactive settings menu resolves colors from pi's global theme singleton
 // (getSettingsListTheme() throws "Theme not initialized" otherwise). Real pi sessions
@@ -121,6 +122,99 @@ test("arbitrates native and aggregate background terminal progress through the f
   assert.deepEqual(progressCalls, [true, false], "OSC policy is separate from raw timer activity");
   footer?.dispose?.();
   await handlers.get("session_shutdown")!({ reason: "quit" });
+});
+
+test("raw background activity extends union time without changing foreground rates or requesting OSC", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  const busHandlers = new Map<string, Set<(data: unknown) => void>>();
+  const progressCalls: boolean[] = [];
+  const terminal = { setProgress: (active: boolean) => progressCalls.push(active) };
+  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
+  let now = 0;
+  const originalNow = Date.now;
+  Date.now = () => now;
+  const settingsPath = join(cacheRoot, "activity-union.json");
+  writeFileSync(settingsPath, JSON.stringify({
+    ...DEFAULT_STATUSLINE_SETTINGS,
+    extras: { ...DEFAULT_STATUSLINE_SETTINGS.extras, lastTurn: true },
+  }));
+  const events = {
+    on: (channel: string, handler: (data: unknown) => void) => {
+      const listeners = busHandlers.get(channel) ?? new Set<(data: unknown) => void>();
+      listeners.add(handler);
+      busHandlers.set(channel, listeners);
+      return () => listeners.delete(handler);
+    },
+    emit: (channel: string, data: unknown) => {
+      for (const handler of busHandlers.get(channel) ?? []) handler(data);
+    },
+  };
+  const pi = {
+    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+    events,
+    registerCommand: () => {},
+    getThinkingLevel: () => "off",
+    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+  } as never;
+  const ctx = {
+    cwd: process.cwd(),
+    model: { id: "local", provider: "local", baseUrl: "http://localhost:1234" },
+    modelRegistry: { isUsingOAuth: () => false },
+    getContextUsage: () => undefined,
+    hasPendingMessages: () => false,
+    sessionManager: { getBranch: () => [] },
+    ui: {
+      setFooter: (factory: any) => {
+        footer = factory?.(
+          { requestRender: () => {}, terminal },
+          { fg: (_: string, text: string) => text, getColorMode: () => "16", getFgAnsi: () => "" },
+          { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
+        );
+      },
+      notify: () => {},
+    },
+  } as never;
+
+  try {
+    statusline(pi, testCache(), settingsPath);
+    await handlers.get("session_start")!({}, ctx);
+    now = 1_000;
+    events.emit("pi.agent-activity.v1:update", {
+      version: 1,
+      source: "subagents",
+      active: true,
+      terminalProgress: false,
+    });
+    now = 2_000;
+    handlers.get("turn_start")!({ timestamp: now });
+    now = 2_500;
+    handlers.get("message_update")!({ message: { role: "assistant", content: [{ type: "text", text: "working" }] } });
+    now = 3_500;
+    handlers.get("message_end")!({ message: { role: "assistant" } });
+    now = 4_000;
+    await handlers.get("turn_end")!({
+      message: { role: "assistant", content: [{ type: "text", text: "done" }], usage: { input: 100, output: 20 } },
+    }, ctx);
+    const whileChildRuns = footer!.render(500)[0]!;
+    assert.ok(whileChildRuns.includes("⚡↑200 ↓20 t/s"), whileChildRuns);
+    assert.ok(whileChildRuns.includes("⏳ 3s (last 2s)"), whileChildRuns);
+
+    now = 6_000;
+    events.emit("pi.agent-activity.v1:update", {
+      version: 1,
+      source: "subagents",
+      active: false,
+      terminalProgress: false,
+    });
+    const settled = footer!.render(500)[0]!;
+    assert.ok(settled.includes("⚡↑200 ↓20 t/s"), settled);
+    assert.ok(settled.includes("⏳ 5s (last 2s)"), settled);
+    assert.deepEqual(progressCalls, [], "raw timer activity must not imply terminal progress");
+  } finally {
+    footer?.dispose?.();
+    await handlers.get("session_shutdown")?.({ reason: "quit" });
+    Date.now = originalNow;
+  }
 });
 
 test("reads generic extension statuses from footer data on every render", async () => {

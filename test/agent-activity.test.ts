@@ -65,3 +65,22 @@ test("terminal multiplexer disposal preserves an outstanding native request", ()
   terminal.setProgress(false);
   assert.deepEqual(calls, [true, false]);
 });
+
+test("sequential reload cycles restore and reacquire terminal method ownership exactly once", () => {
+  const calls: boolean[] = [];
+  const terminal = { setProgress: (active: boolean) => calls.push(active) };
+  const original = terminal.setProgress;
+
+  const first = new TerminalProgressMultiplexer(terminal);
+  assert.notEqual(terminal.setProgress, original);
+  first.setExternal(true);
+  first.dispose();
+  assert.equal(terminal.setProgress, original);
+
+  const second = new TerminalProgressMultiplexer(terminal);
+  assert.notEqual(terminal.setProgress, original);
+  second.setExternal(true);
+  second.dispose();
+  assert.equal(terminal.setProgress, original);
+  assert.deepEqual(calls, [true, false, true, false]);
+});

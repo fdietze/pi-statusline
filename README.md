@@ -40,7 +40,7 @@ At full width, segments render in the order below. When the line no longer fits,
 | `context` | on | Context percent and window; green below 120K tokens, orange from 120K, red from 170K (75%/90% also warn for smaller windows) |
 | `session` | on | Available subscription usage windows and reset countdowns; Codex labels come from the account's current limits |
 | `throughput` | on | Token throughput, adapted to how the model is billed — live `↑/↓` rates, a running `🧾` token/cost ledger, or nothing (see below) |
-| `time` | on | Live-ticking cumulative active turn time |
+| `time` | on | Live-ticking cumulative active agent time (foreground plus compatible background sources) |
 
 The Git HUD defaults on inside repositories: `main ✓`. It shows `↓` incoming/behind and `↑` outgoing/ahead counts; `✓` means neither is pending. Local working-tree changes are intentionally ignored. Colors use the active theme's accent, success, warning, and error roles.
 
@@ -100,11 +100,11 @@ The `⚡` segment adapts to how the active model is billed, because a token rate
 
 Rate coloring compares each direction to its own recent same-model baseline: green at or above 90%, orange from 60–89%, and red below 60%. Until three samples are available it stays neutral; output at or below 15 t/s is always red. Changing models resets both rates and baselines.
 
-Active time is the sum of turn durations and ticks live while a turn is running. The timer stops when pi settles, including interrupted or failed turns. Optional elapsed time is wall-clock time since the session loaded; optional last-turn time is the most recently completed turn duration.
+Active time counts the wall-clock union of foreground turns and compatible background activity. Overlapping agents count once rather than multiplying time by thread count. Foreground prompt-wait, throughput, and optional last-turn duration retain their foreground-turn semantics. The timer stops when every activity source settles, including interrupted or failed work. Optional elapsed time remains wall-clock time since the session loaded.
 
-### Background terminal progress
+### Background activity and terminal progress
 
-Foreground extensions can publish version 1 source snapshots on Pi's shared `pi.agent-activity.v1:update` event channel with `{ version: 1, source, active, terminalProgress }`. The statusline requests current snapshots on `pi.agent-activity.v1:request` when a session starts, so extension load order does not lose live state. Raw `active` is available for non-OSC consumers; `terminalProgress` contributes to OSC progress independently, allowing Pi's `showTerminalProgress` setting to disable OSC without suppressing activity data.
+Foreground extensions can publish version 1 source snapshots on Pi's shared `pi.agent-activity.v1:update` event channel with `{ version: 1, source, active, terminalProgress }`. The statusline requests current snapshots on `pi.agent-activity.v1:request` when a session starts, so extension load order does not lose live state. Raw `active` contributes to the union timer; `terminalProgress` contributes to OSC progress independently, allowing Pi's `showTerminalProgress` setting to disable OSC without disabling time accounting.
 
 The footer arbitrates external progress with Pi's native foreground request through the existing terminal's `setProgress()` method. Pi's terminal remains the sole OSC 9;4 writer and keepalive owner.
 

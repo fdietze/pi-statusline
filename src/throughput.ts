@@ -70,6 +70,7 @@ export class TurnMeter {
   private inputHistory: number[] = [];
   private outputHistory: number[] = [];
   private activeMs = 0;
+  private activeStartedAt?: number;
   private lastTurnMs?: number;
   private liveOutputChars = 0;
 
@@ -85,6 +86,7 @@ export class TurnMeter {
     this.messageEndedAt = undefined;
     this.resetThroughput();
     this.activeMs = 0;
+    this.activeStartedAt = undefined;
     this.lastTurnMs = undefined;
   }
 
@@ -125,10 +127,25 @@ export class TurnMeter {
     return this.turnStartedAt === undefined ? 0 : Math.max(0, at - this.turnStartedAt);
   }
 
+  /** Live portion of union wall-clock activity; independent from foreground turn timing. */
+  liveActiveMs(at = this.clock()): number {
+    return this.activeStartedAt === undefined ? 0 : Math.max(0, at - this.activeStartedAt);
+  }
+
+  /** Transition-based union accounting: repeated/overlapping starts and stops are idempotent. */
+  setActive(active: boolean, at = this.clock()): void {
+    if (active) {
+      this.activeStartedAt ??= at;
+      return;
+    }
+    if (this.activeStartedAt === undefined) return;
+    this.activeMs += Math.max(0, at - this.activeStartedAt);
+    this.activeStartedAt = undefined;
+  }
+
   finalizeActiveTurn(at = this.clock()): void {
     if (this.turnStartedAt === undefined) return;
     const duration = this.liveElapsedMs(at);
-    this.activeMs += duration;
     this.lastTurnMs = duration;
     this.turnStartedAt = undefined;
     this.firstUpdateAt = undefined;
@@ -139,7 +156,6 @@ export class TurnMeter {
   finishTurn(usage: TokenUsage, at = this.clock()): void {
     if (this.turnStartedAt === undefined) return;
     const duration = Math.max(0, at - this.turnStartedAt);
-    this.activeMs += duration;
     this.lastTurnMs = duration;
 
     const inputMs = this.firstUpdateAt === undefined ? 0 : this.firstUpdateAt - this.turnStartedAt;

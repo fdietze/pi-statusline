@@ -97,13 +97,16 @@ test("caps histories and resets displayed throughput on model changes", () => {
   assert.equal(meter.snapshot(8_000).outputLevel, "error");
 });
 
-test("finalizes active time without preserving rates", () => {
+test("finalizes a foreground turn without conflating its throughput window with active time", () => {
   const meter = new TurnMeter(() => 0);
+  meter.setActive(true, 1_000);
   meter.startTurn(1_000);
   assert.equal(meter.liveElapsedMs(2_000), 1_000);
   meter.finalizeActiveTurn(4_000);
   assert.equal(meter.liveElapsedMs(5_000), 0);
-  assert.equal(meter.snapshot(5_000).activeMs, 3_000);
+  assert.equal(meter.liveActiveMs(5_000), 4_000, "aggregate activity can outlive the foreground turn");
+  meter.setActive(false, 5_000);
+  assert.equal(meter.snapshot(5_000).activeMs, 4_000);
   assert.equal(meter.snapshot(5_000).lastTurnMs, 3_000);
   assert.equal(meter.snapshot(5_000).inputRate, undefined);
 });
@@ -112,10 +115,12 @@ test("retains idle result, resets on turn start, and accumulates active time", (
   const meter = new TurnMeter(() => 1_000);
   assert.equal(meter.snapshot(1_000).lastTurnMs, undefined);
   for (const [start, duration] of [[1_000, 5_000], [7_000, 10_000], [20_000, 3_000]] as const) {
+    meter.setActive(true, start);
     meter.startTurn(start);
     meter.markFirstUpdate(start + 1_000);
     meter.markMessageEnd(start + duration);
     meter.finishTurn({ input: 100, output: 100 }, start + duration);
+    meter.setActive(false, start + duration);
   }
   const idle = meter.snapshot(30_000);
   assert.equal(idle.activeMs, 18_000);
@@ -123,8 +128,23 @@ test("retains idle result, resets on turn start, and accumulates active time", (
   assert.equal(idle.elapsedMs, 29_000);
   assert.ok(idle.outputRate);
 
+  meter.setActive(true, 31_000);
   meter.startTurn(31_000);
   assert.equal(meter.snapshot(31_000).outputRate, undefined);
   meter.finishTurn({ input: 0, output: 0 }, 35_000);
+  meter.setActive(false, 35_000);
   assert.equal(meter.snapshot(35_000).activeMs, 22_000);
+});
+
+test("active time counts the union of overlapping main and background work once", () => {
+  const meter = new TurnMeter(() => 0);
+  meter.setActive(true, 1_000); // main starts
+  meter.setActive(true, 2_000); // child overlaps: idempotent
+  meter.startTurn(1_000);
+  meter.finishTurn({ input: 10, output: 10 }, 4_000); // main ends, child remains
+  assert.equal(meter.liveActiveMs(6_000), 5_000);
+  meter.setActive(false, 7_000); // final child ends
+  meter.setActive(false, 8_000); // repeated stop: idempotent
+  assert.equal(meter.snapshot(9_000).activeMs, 6_000);
+  assert.equal(meter.snapshot(9_000).lastTurnMs, 3_000, "last-turn remains foreground-only");
 });
