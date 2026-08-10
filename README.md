@@ -102,6 +102,12 @@ Rate coloring compares each direction to its own recent same-model baseline: gre
 
 Active time is the sum of turn durations and ticks live while a turn is running. The timer stops when pi settles, including interrupted or failed turns. Optional elapsed time is wall-clock time since the session loaded; optional last-turn time is the most recently completed turn duration.
 
+### Background terminal progress
+
+Foreground extensions can publish version 1 source snapshots on Pi's shared `pi.agent-activity.v1:update` event channel with `{ version: 1, source, active, terminalProgress }`. The statusline requests current snapshots on `pi.agent-activity.v1:request` when a session starts, so extension load order does not lose live state. Raw `active` is available for non-OSC consumers; `terminalProgress` contributes to OSC progress independently, allowing Pi's `showTerminalProgress` setting to disable OSC without suppressing activity data.
+
+The footer arbitrates external progress with Pi's native foreground request through the existing terminal's `setProgress()` method. Pi's terminal remains the sole OSC 9;4 writer and keepalive owner.
+
 ## License
 
 MIT

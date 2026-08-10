@@ -1,6 +1,13 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { parseKey, truncateToWidth } from "@earendil-works/pi-tui";
+import {
+  AGENT_ACTIVITY_REQUEST_EVENT,
+  AGENT_ACTIVITY_UPDATE_EVENT,
+  AgentActivitySources,
+  TerminalProgressMultiplexer,
+  type ProgressTerminal,
+} from "../src/agent-activity.ts";
 import { billingMode, isLocalEndpoint } from "../src/derive.ts";
 import { formatResetCountdown, formatTime } from "../src/format.ts";
 import { parseGitStatus, type GitStatusState } from "../src/git.ts";
@@ -47,6 +54,9 @@ export default function statusline(
   let sessionActive = false;
   let sessionEpoch = 0;
   let turnActive = false;
+  const activitySources = new AgentActivitySources();
+  let progressTerminal: ProgressTerminal | undefined;
+  let progressMultiplexer: TerminalProgressMultiplexer | undefined;
   // Live footer-only values captured so the settings preview can show the same HUD and statuses.
   let liveGitBranch: string | null | undefined;
   let liveExtensionStatuses: string[] = [];
@@ -95,6 +105,28 @@ export default function statusline(
     if (shouldTick && !tick) startTick();
     else if (!shouldTick && tick) stopTick();
   };
+
+  const disposeProgressMultiplexer = () => {
+    progressMultiplexer?.dispose();
+    progressMultiplexer = undefined;
+    progressTerminal = undefined;
+  };
+  const ensureProgressMultiplexer = (terminal: ProgressTerminal | undefined, initialNativeActive = false) => {
+    if (!terminal || terminal === progressTerminal) return;
+    disposeProgressMultiplexer();
+    progressTerminal = terminal;
+    progressMultiplexer = new TerminalProgressMultiplexer(terminal, initialNativeActive);
+    progressMultiplexer.setExternal(activitySources.snapshot().terminalProgress);
+  };
+  type ExtensionEventBus = {
+    on(channel: string, handler: (data: unknown) => void): () => void;
+    emit(channel: string, data: unknown): void;
+  };
+  const extensionEvents = (pi as unknown as { events?: ExtensionEventBus }).events;
+  extensionEvents?.on(AGENT_ACTIVITY_UPDATE_EVENT, (data) => {
+    if (!activitySources.update(data)) return;
+    progressMultiplexer?.setExternal(activitySources.snapshot().terminalProgress);
+  });
 
   const refreshGit = async (ctx: ExtensionContext, epoch = sessionEpoch) => {
     if (!isCurrentSession(epoch)) return;
@@ -291,6 +323,10 @@ export default function statusline(
     if (!isCurrentSession(epoch)) return;
     ctx.ui.setFooter((tui, theme, footerData) => {
       requestRender = () => tui.requestRender();
+      ensureProgressMultiplexer(
+        (tui as unknown as { terminal?: ProgressTerminal }).terminal,
+        typeof ctx.isIdle === "function" && !ctx.isIdle(),
+      );
       const unsubscribe = footerData.onBranchChange(() => {
         gitStatus = undefined;
         tui.requestRender();
@@ -549,6 +585,8 @@ export default function statusline(
     const epoch = ++sessionEpoch;
     sessionActive = true;
     turnActive = false;
+    activitySources.clear();
+    disposeProgressMultiplexer();
     stopTick();
     stopAnthropicRetry();
     settings = loadRuntimeSettings(settingsPath);
@@ -584,6 +622,7 @@ export default function statusline(
       if (cached?.limits.length) providerRefresh.prime(provider, cached, provider === "anthropic" ? Date.now() : cached.updatedAt);
     }
     if (settings.enabled) installFooter(ctx, epoch);
+    extensionEvents?.emit(AGENT_ACTIVITY_REQUEST_EVENT, { version: 1 });
     providerRefresh.start(trackedProviders);
     if (!providers.includes(ctx.model?.provider ?? "")) {
       void refreshAnthropicLimits(ctx, epoch).then((next) => { if (!next.length) scheduleAnthropicRetry(ctx, 0, epoch); });
@@ -597,6 +636,9 @@ export default function statusline(
     sessionActive = false;
     sessionEpoch++;
     turnActive = false;
+    activitySources.clear();
+    progressMultiplexer?.setExternal(false);
+    disposeProgressMultiplexer();
     stopTick();
     stopGitTick();
     stopAnthropicRetry();

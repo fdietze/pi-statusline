@@ -62,6 +62,67 @@ test("stops the live timer when settled or the footer is disposed", async () => 
   }
 });
 
+test("arbitrates native and aggregate background terminal progress through the footer terminal", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  const busHandlers = new Map<string, Set<(data: unknown) => void>>();
+  const progressCalls: boolean[] = [];
+  const terminal = { setProgress: (active: boolean) => progressCalls.push(active) };
+  let footer: { dispose?: () => void } | undefined;
+  const events = {
+    on: (channel: string, handler: (data: unknown) => void) => {
+      const listeners = busHandlers.get(channel) ?? new Set<(data: unknown) => void>();
+      listeners.add(handler);
+      busHandlers.set(channel, listeners);
+      return () => listeners.delete(handler);
+    },
+    emit: (channel: string, data: unknown) => {
+      for (const handler of busHandlers.get(channel) ?? []) handler(data);
+    },
+  };
+  const pi = {
+    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+    events,
+    registerCommand: () => {},
+    getThinkingLevel: () => "off",
+    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+  } as never;
+  const ctx = {
+    cwd: process.cwd(),
+    ui: {
+      setFooter: (factory: any) => {
+        footer = factory?.(
+          { requestRender: () => {}, terminal },
+          { fg: (_: string, text: string) => text },
+          { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
+        );
+      },
+      notify: () => {},
+    },
+  } as never;
+
+  statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
+  await handlers.get("session_start")!({}, ctx);
+  events.emit("pi.agent-activity.v1:update", {
+    version: 1,
+    source: "subagents",
+    active: true,
+    terminalProgress: true,
+  });
+  assert.deepEqual(progressCalls, [true]);
+  terminal.setProgress(false); // Pi's foreground stops; the child keeps effective progress active.
+  assert.deepEqual(progressCalls, [true]);
+
+  events.emit("pi.agent-activity.v1:update", {
+    version: 1,
+    source: "subagents",
+    active: true,
+    terminalProgress: false,
+  });
+  assert.deepEqual(progressCalls, [true, false], "OSC policy is separate from raw timer activity");
+  footer?.dispose?.();
+  await handlers.get("session_shutdown")!({ reason: "quit" });
+});
+
 test("reads generic extension statuses from footer data on every render", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   const statuses = new Map<string, string>();
