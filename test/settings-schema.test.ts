@@ -253,7 +253,7 @@ test("schema: thresholds per-provider optional override", () => {
 });
 
 test("schema: CURRENT_VERSION const exported", () => {
-  assert.equal(CURRENT_VERSION, 2);
+  assert.equal(CURRENT_VERSION, 3);
   assert.equal(typeof CURRENT_VERSION, "number");
 });
 

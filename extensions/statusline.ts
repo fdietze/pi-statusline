@@ -14,7 +14,7 @@ import { parseGitStatus, type GitStatusState } from "../src/git.ts";
 import { parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage, type RateLimits, type RateLimitWindow } from "../src/ratelimit.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
 import { ProviderRefreshCoordinator, RateLimitedError, type ProviderAdapter } from "../src/providers.ts";
-import { renderMainLine, renderProviderRows, providerHasRow, type ProviderRowSource } from "../src/render.ts";
+import { renderMainLine, renderProviderRows, providerHasRow, type ExtensionStatus, type ProviderRowSource } from "../src/render.ts";
 import { estimateTokens, sumTextLength, TurnMeter } from "../src/throughput.ts";
 import {
   DEFAULT_STATUSLINE_CONFIG_PATH,
@@ -60,7 +60,7 @@ export default function statusline(
   let progressMultiplexer: TerminalProgressMultiplexer | undefined;
   // Live footer-only values captured so the settings preview can show the same HUD and statuses.
   let liveGitBranch: string | null | undefined;
-  let liveExtensionStatuses: string[] = [];
+  let liveExtensionStatuses: ExtensionStatus[] = [];
   // True while the settings overlay is open; keeps commitSettings from flashing the live footer.
   let settingsOverlayOpen = false;
   let providerRefresh: ProviderRefreshCoordinator | undefined;
@@ -387,7 +387,8 @@ export default function statusline(
             : "";
           // Query on every render so ctx.ui.setStatus() changes are reflected immediately. The
           // optional fallback keeps the fork loadable on older Pi versions without FooterData.
-          liveExtensionStatuses = [...(footerData.getExtensionStatuses?.() ?? new Map<string, string>()).values()];
+          liveExtensionStatuses = [...(footerData.getExtensionStatuses?.() ?? new Map<string, string>())]
+            .map(([key, value]) => ({ key, value }));
           lastRenderedTime = tickLabel();
           const line = renderMainLine(settings, {
             cwd: ctx.cwd,

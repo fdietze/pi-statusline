@@ -1,8 +1,8 @@
 import type { SegmentId } from "../segments.ts";
 export type { SegmentId } from "../segments.ts";
 
-/** Current schema version. Version 2 adds the generic extension-status segment. */
-export const CURRENT_VERSION = 2 as const;
+/** Current schema version. Version 3 adds keyed right-aligned extension statuses. */
+export const CURRENT_VERSION = 3 as const;
 
 export type Version = typeof CURRENT_VERSION;
 
@@ -135,6 +135,8 @@ export interface LayoutSettings {
   segmentOrder: SegmentId[];
   /** Narrow priority (segments dropped first under width pressure). */
   narrowPriority: SegmentId[];
+  /** Extension status keys rendered at the right edge when spare width is available. */
+  rightAlignedExtensionStatuses: string[];
 }
 
 /** Separator and spacing configuration. */

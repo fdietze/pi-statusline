@@ -116,9 +116,9 @@ test("generic extension statuses preserve order, styling, and display width", ()
   settings.layout.segmentOrder = ["extensions"];
   settings.layout.narrowPriority = ["extensions"];
 
-  const render = (extensionStatuses: string[], width = 100) => renderMainLine(settings, {
+  const render = (values: string[], width = 100) => renderMainLine(settings, {
     cwd: "/tmp/project",
-    extensionStatuses,
+    extensionStatuses: values.map((value, index) => ({ key: `status-${index}`, value })),
   }, width);
 
   assert.equal(render([]), "");
@@ -135,6 +135,72 @@ test("generic extension statuses preserve order, styling, and display width", ()
   assert.equal(render([styled], 3), "", "extension statuses drop cleanly under width pressure");
 });
 
+test("configured extension status keys align right without moving other statuses", () => {
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as typeof DEFAULT_STATUSLINE_SETTINGS & {
+    layout: { rightAlignedExtensionStatuses: string[] };
+  };
+  for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
+  settings.segments.extensions = true;
+  settings.layout.segmentOrder = ["extensions"];
+  settings.layout.narrowPriority = ["extensions"];
+  settings.layout.rightAlignedExtensionStatuses = ["mcp"];
+
+  const styledMcp = "\x1b[36mMCP 3/3\x1b[0m";
+  const snapshot = {
+    cwd: "/tmp/project",
+    extensionStatuses: [
+      { key: "fast", value: "FAST" },
+      { key: "mcp", value: styledMcp },
+    ],
+  } as never;
+
+  const wide = renderMainLine(settings, snapshot, 24);
+  assert.equal(wide, `FAST${" ".repeat(13)}${styledMcp}`);
+  assert.equal(visibleWidth(wide), 24);
+  assert.equal(renderMainLine(settings, snapshot, 10), "FAST", "the right status drops before left content");
+  assert.equal(renderMainLine(settings, {
+    cwd: "/tmp/project",
+    extensionStatuses: [{ key: "mcp", value: styledMcp }],
+  } as never, 10), `   ${styledMcp}`);
+
+  settings.separators.trailingSpacing = 2;
+  const styledWideMcp = "\x1b[36mMCP 🧠\x1b[0m";
+  const wideGlyphLine = renderMainLine(settings, {
+    cwd: "/tmp/project",
+    extensionStatuses: [
+      { key: "fast", value: "FAST" },
+      { key: "mcp", value: styledWideMcp },
+    ],
+  } as never, 24);
+  assert.equal(visibleWidth(wideGlyphLine), 24);
+  assert.ok(wideGlyphLine.endsWith(`${styledWideMcp}  `), wideGlyphLine);
+});
+
+test("right-aligned statuses disappear when the left side already needs responsive dropping", () => {
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
+  for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
+  settings.segments.extensions = true;
+  settings.segments.context = true;
+  settings.layout.segmentOrder = ["extensions", "context"];
+  settings.layout.narrowPriority = ["extensions"];
+
+  const baseStatuses = [{ key: "review", value: "LONG-INLINE-STATUS" }];
+  const snapshot = {
+    cwd: "/tmp/project",
+    contextUsage: { percent: 20, tokens: 20_000, contextWindow: 100_000 },
+    extensionStatuses: baseStatuses,
+  };
+  assert.ok(visibleWidth(renderMainLine(settings, snapshot, 200)) > 16);
+
+  const withoutMcp = renderMainLine(settings, snapshot, 16);
+  const withMcp = renderMainLine(settings, {
+    ...snapshot,
+    extensionStatuses: [...baseStatuses, { key: "mcp", value: "MCP 3/3" }],
+  }, 16);
+  assert.equal(withMcp, withoutMcp);
+  assert.equal(withMcp.includes("MCP"), false, withMcp);
+});
+
 test("version 1 settings drop migrated statuses atomically at narrow widths", () => {
   const old = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as unknown as Record<string, any>;
   old.version = 1;
@@ -146,7 +212,7 @@ test("version 1 settings drop migrated statuses atomically at narrow widths", ()
   const line = renderMainLine(settings, {
     cwd: "/tmp/project",
     contextUsage: { percent: 20, tokens: 20_000, contextWindow: 100_000 },
-    extensionStatuses: ["\x1b[31mFAST-LONG-STATUS\x1b[0m"],
+    extensionStatuses: [{ key: "fast", value: "\x1b[31mFAST-LONG-STATUS\x1b[0m" }],
   }, 20);
 
   assert.ok(visibleWidth(line) <= 20, line);

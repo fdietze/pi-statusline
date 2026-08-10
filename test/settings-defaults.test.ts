@@ -32,6 +32,10 @@ test("defaults: segmentOrder matches SEGMENT_ORDER", () => {
   assert.deepEqual(DEFAULT_STATUSLINE_SETTINGS.layout.segmentOrder, SEGMENT_ORDER);
 });
 
+test("defaults: MCP is the only right-aligned extension status", () => {
+  assert.deepEqual(DEFAULT_STATUSLINE_SETTINGS.layout.rightAlignedExtensionStatuses, ["mcp"]);
+});
+
 test("defaults: narrowPriority drops low-priority segments first, retains context", () => {
   const narrowPriority = DEFAULT_STATUSLINE_SETTINGS.layout.narrowPriority;
   // Current behavior drops ordinary segments first, extension statuses last, and retains context.

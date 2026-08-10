@@ -286,6 +286,11 @@ function parseLayout(value: unknown): StatuslineSettings["layout"] {
   const narrowPriority: SegmentId[] = Array.isArray(input.narrowPriority)
     ? input.narrowPriority.map(sanitizeString).filter((s): s is SegmentId => VALID_SEGMENT_IDS.has(s))
     : [];
+  const rightAlignedExtensionStatuses = Array.isArray(input.rightAlignedExtensionStatuses)
+    ? [...new Set(input.rightAlignedExtensionStatuses
+      .map((key) => sanitizeString(key).trim().slice(0, 128))
+      .filter((key) => key.length > 0))].slice(0, 32)
+    : [...DEFAULT_STATUSLINE_SETTINGS.layout.rightAlignedExtensionStatuses];
 
   return {
     providerRows,
@@ -294,6 +299,7 @@ function parseLayout(value: unknown): StatuslineSettings["layout"] {
     // Absent or fully-invalid order falls back to cloned defaults (never an empty order).
     segmentOrder: segmentOrder.length ? segmentOrder : [...DEFAULT_STATUSLINE_SETTINGS.layout.segmentOrder],
     narrowPriority: narrowPriority.length ? narrowPriority : [...DEFAULT_STATUSLINE_SETTINGS.layout.narrowPriority],
+    rightAlignedExtensionStatuses,
   };
 }
 

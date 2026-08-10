@@ -15,6 +15,7 @@ import { estimateTokens, type ThroughputLevel } from "./throughput.ts";
 import type { RateLimitWindow } from "./ratelimit.ts";
 import type { ResetFormat, StatuslineSettings } from "./settings/schema.ts";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
+import { visibleWidth } from "@earendil-works/pi-tui";
 
 /** Match Pi's single-line status normalization while preserving extension-provided ANSI styling. */
 function normalizeExtensionStatus(status: string): string {
@@ -46,6 +47,13 @@ export interface MeterSnapshot {
   lastTurnMs?: number;
 }
 
+export interface ExtensionStatus {
+  /** Stable key passed to ctx.ui.setStatus(). */
+  key: string;
+  /** Publisher-provided display value, which may contain ANSI styling. */
+  value: string;
+}
+
 export interface FooterSnapshot {
   cwd: string;
   model?: { id: string; provider?: string; reasoning?: boolean; baseUrl?: string };
@@ -69,8 +77,8 @@ export interface FooterSnapshot {
   activeProviderHasRow?: boolean;
   /** Placeholder shown for an eligible subscription provider before its windows load (e.g. "5h — wk —"). */
   sessionPlaceholder?: string;
-  /** Generic status values published by Pi extensions, in FooterData map order. */
-  extensionStatuses?: readonly string[];
+  /** Generic statuses published by Pi extensions, in FooterData map order. */
+  extensionStatuses?: readonly ExtensionStatus[];
   now?: number;
 }
 
@@ -315,10 +323,16 @@ export function renderMainLine(
     return glyph ? `${glyph} ${value}` : value;
   };
 
-  const extensionStatuses = (snap.extensionStatuses ?? [])
-    .map(normalizeExtensionStatus)
-    .filter((status) => status.length > 0)
+  const normalizedExtensionStatuses = (snap.extensionStatuses ?? [])
+    .map(({ key, value }) => ({ key, value: normalizeExtensionStatus(value) }))
+    .filter(({ value }) => value.length > 0);
+  const rightAlignedStatusKeys = settings.layout.rightAlignedExtensionStatuses ?? [];
+  const rightAlignedKeys = new Set(rightAlignedStatusKeys);
+  const extensionStatuses = normalizedExtensionStatuses
+    .filter(({ key }) => !rightAlignedKeys.has(key))
+    .map(({ value }) => value)
     .join(" ");
+  const statusesByKey = new Map(normalizedExtensionStatuses.map(({ key, value }) => [key, value]));
 
   const visibility = { ...settings.segments };
   const activeModel = snap.model?.provider ? settings.providers.records[snap.model.provider]?.activeModel : undefined;
@@ -328,6 +342,12 @@ export function renderMainLine(
       else if (activeModel[id] === "off") visibility[id] = false;
     }
   }
+  const rightExtensionStatuses = visibility.extensions
+    ? rightAlignedStatusKeys
+      .map((key) => statusesByKey.get(key))
+      .filter((value): value is string => value !== undefined)
+      .join(" ")
+    : "";
   const orderRank = new Map(settings.layout.segmentOrder.map((id, index) => [id, index] as const));
   const segments = createSegments(visibility, {
     project: () => {
@@ -357,7 +377,20 @@ export function renderMainLine(
   }).sort((a, b) => (orderRank.get(a.id) ?? SEGMENT_ORDER.length) - (orderRank.get(b.id) ?? SEGMENT_ORDER.length));
   const inner = Math.max(0, width - Math.min(settings.separators.trailingSpacing, Math.max(0, width)));
   const separator = `${settings.separators.padding}${" ".repeat(settings.separators.spacingBefore)}${settings.separators.main}${" ".repeat(settings.separators.spacingAfter)}`;
-  const line = composeSegments(segments, inner, paint("dim", separator), settings.layout.narrowPriority);
+  const paintedSeparator = paint("dim", separator);
+  const line = composeSegments(segments, inner, paintedSeparator, settings.layout.narrowPriority);
+  const fullLeft = rightExtensionStatuses
+    ? composeSegments(segments, Number.MAX_SAFE_INTEGER, paintedSeparator, settings.layout.narrowPriority)
+    : line;
+  const leftWidth = visibleWidth(line);
+  const rightWidth = visibleWidth(rightExtensionStatuses);
+  const minimumGap = line ? 1 : 0;
+  const canAlignRight = rightExtensionStatuses.length > 0
+    && visibleWidth(fullLeft) <= inner
+    && leftWidth + minimumGap + rightWidth <= inner;
+  const aligned = canAlignRight
+    ? `${line}${" ".repeat(inner - leftWidth - rightWidth)}${rightExtensionStatuses}`
+    : line;
   const trailing = Math.min(settings.separators.trailingSpacing, Math.max(0, width));
-  return line + " ".repeat(trailing);
+  return aligned + " ".repeat(trailing);
 }

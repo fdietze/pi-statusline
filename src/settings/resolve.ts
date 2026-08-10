@@ -4,7 +4,7 @@ import type { StatuslineSettings, ActiveModelToggle } from "./schema.ts";
 import type { ProviderCapability } from "./providers/capabilities.ts";
 import type { RateLimitWindow } from "../ratelimit.ts";
 import type { GitStatusState } from "../git.ts";
-import { renderMainLine, type RenderTheme } from "../render.ts";
+import { renderMainLine, type ExtensionStatus, type RenderTheme } from "../render.ts";
 
 /**
  * Resolution helpers for the settings UI/tests. The actual line rendering lives in
@@ -20,8 +20,8 @@ export interface RuntimeSnapshot {
   activeProvider?: string;
   thinkingLevel?: string;
   contextUsage?: ContextUsage;
-  /** Generic extension status values in stable FooterData map order. */
-  extensionStatuses?: readonly string[];
+  /** Generic extension statuses in stable FooterData map order. */
+  extensionStatuses?: readonly ExtensionStatus[];
   throughput?: { inputRate?: number; outputRate?: number };
   /** Active subscription quota windows, when the active provider reports them. */
   sessionWindows?: RateLimitWindow[];
@@ -54,7 +54,7 @@ function isApplicable(id: SegmentId, ctx: ResolutionContext): boolean {
       // Non-reasoning models have no effort level to show.
       return runtime.model?.reasoning === true;
     case "extensions":
-      return Boolean(runtime.extensionStatuses?.some((status) => status.length > 0));
+      return Boolean(runtime.extensionStatuses?.some(({ value }) => value.length > 0));
     case "context":
       // Hide when no context usage (or right after compaction, where percent is null).
       return Boolean(runtime.contextUsage && runtime.contextUsage.percent !== null);

@@ -59,6 +59,7 @@ test("validation: valid parse - full valid doc round-trips", () => {
       maxWidth: 0,
       segmentOrder: ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"],
       narrowPriority: ["time", "throughput", "project", "effort", "model", "session", "extensions"],
+      rightAlignedExtensionStatuses: ["mcp"],
     },
     separators: {
       main: " · ",
@@ -150,6 +151,30 @@ test("validation: version 1 migration preserves customized ordering and zero spa
   assert.deepEqual(result.settings.layout.segmentOrder, ["time", "extensions", "context", "model"]);
   assert.deepEqual(result.settings.layout.narrowPriority, ["model", "time", "extensions"]);
   assert.equal(result.settings.separators.spacingAfter, 0);
+});
+
+test("validation: version 2 settings adopt keyed MCP right alignment", () => {
+  const input = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as unknown as Record<string, any>;
+  input.version = 2;
+  delete input.layout.rightAlignedExtensionStatuses;
+
+  const result = parseStatuslineSettings(input);
+  assert.equal(result.settings.version, CURRENT_VERSION);
+  assert.deepEqual(result.settings.layout.rightAlignedExtensionStatuses, ["mcp"]);
+});
+
+test("validation: right-aligned extension keys are sanitized, deduplicated, and may be disabled", () => {
+  const configured = parseStatuslineSettings({
+    version: CURRENT_VERSION,
+    layout: { rightAlignedExtensionStatuses: [" mcp ", "mcp", "review\n", "", 42] },
+  });
+  assert.deepEqual(configured.settings.layout.rightAlignedExtensionStatuses, ["mcp", "review"]);
+
+  const disabled = parseStatuslineSettings({
+    version: CURRENT_VERSION,
+    layout: { rightAlignedExtensionStatuses: [] },
+  });
+  assert.deepEqual(disabled.settings.layout.rightAlignedExtensionStatuses, []);
 });
 
 test("validation: invalid - null/undefined falls back to defaults", () => {
