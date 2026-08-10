@@ -43,12 +43,13 @@ test("validation: valid parse - full valid doc round-trips", () => {
             project: "default",
             model: "default",
             effort: "default",
+            extensions: "default",
             context: "default",
             session: "default",
             throughput: "default",
             time: "default",
           },
-          supportedOverrides: ["project", "model", "effort", "context", "session", "throughput", "time"],
+          supportedOverrides: ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"],
         },
       },
     },
@@ -56,8 +57,8 @@ test("validation: valid parse - full valid doc round-trips", () => {
       providerRows: "newline",
       placement: "below",
       maxWidth: 0,
-      segmentOrder: ["project", "model", "effort", "context", "session", "throughput", "time"],
-      narrowPriority: ["time", "throughput", "project", "effort", "model", "session"],
+      segmentOrder: ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"],
+      narrowPriority: ["time", "throughput", "project", "effort", "model", "session", "extensions"],
     },
     separators: {
       main: " · ",
@@ -76,6 +77,7 @@ test("validation: valid parse - full valid doc round-trips", () => {
       project: true,
       model: true,
       effort: true,
+      extensions: true,
       context: true,
       session: true,
       throughput: true,
@@ -109,6 +111,45 @@ test("validation: valid parse - full valid doc round-trips", () => {
   assert.equal(result.settings.enabled, true);
   assert.equal(result.settings.providers.order.length, 2);
   assert.ok(result.settings.providers.records.anthropic);
+});
+
+test("validation: version 1 settings gain extension-status ordering and provider controls", () => {
+  const input = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as unknown as Record<string, any>;
+  input.version = 1;
+  input.layout.segmentOrder = ["project", "model", "effort", "context", "session", "throughput", "time"];
+  input.layout.narrowPriority = ["time", "throughput", "project", "effort", "model", "session"];
+  delete input.segments.extensions;
+  input.separators.spacingAfter = 0;
+  input.providers.records.example = {
+    enabled: true,
+    displayMode: "custom",
+    windows: {},
+    activeModel: { project: "on", context: "off" },
+    supportedOverrides: ["project", "model", "effort", "context", "session", "throughput", "time"],
+  };
+
+  const result = parseStatuslineSettings(input);
+  assert.equal(result.settings.version, CURRENT_VERSION);
+  assert.deepEqual(result.settings.layout.segmentOrder, ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual(result.settings.layout.narrowPriority, ["time", "throughput", "project", "effort", "model", "session", "extensions"]);
+  assert.equal(result.settings.segments.extensions, true);
+  assert.equal(result.settings.separators.spacingAfter, 1, "the old default separator adopts corrected spacing");
+  assert.equal(result.settings.providers.records.example.activeModel.extensions, "default");
+  assert.deepEqual(result.settings.providers.records.example.supportedOverrides, ["project", "model", "effort", "context", "session", "throughput", "time", "extensions"]);
+});
+
+test("validation: version 1 migration preserves customized ordering and zero spacing", () => {
+  const input = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as unknown as Record<string, any>;
+  input.version = 1;
+  input.layout.segmentOrder = ["time", "context", "model"];
+  input.layout.narrowPriority = ["model", "time"];
+  delete input.segments.extensions;
+  input.separators = { ...input.separators, preset: "Custom", main: "|", spacingAfter: 0 };
+
+  const result = parseStatuslineSettings(input);
+  assert.deepEqual(result.settings.layout.segmentOrder, ["time", "extensions", "context", "model"]);
+  assert.deepEqual(result.settings.layout.narrowPriority, ["model", "time", "extensions"]);
+  assert.equal(result.settings.separators.spacingAfter, 0);
 });
 
 test("validation: invalid - null/undefined falls back to defaults", () => {
@@ -320,8 +361,8 @@ test("validation: future version - returns readOnly true and unchanged", () => {
 
 test("validation: sparse doc falls back to full defaults (not empty order/segments)", () => {
   const result = parseStatuslineSettings({ version: CURRENT_VERSION });
-  assert.deepEqual([...result.settings.layout.segmentOrder], ["project", "model", "effort", "context", "session", "throughput", "time"]);
-  assert.deepEqual(Object.keys(result.settings.segments).sort(), ["context", "effort", "model", "project", "session", "throughput", "time"]);
+  assert.deepEqual([...result.settings.layout.segmentOrder], ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual(Object.keys(result.settings.segments).sort(), ["context", "effort", "extensions", "model", "project", "session", "throughput", "time"]);
   assert.deepEqual(result.settings.separators, DEFAULT_STATUSLINE_SETTINGS.separators);
   assert.deepEqual(result.settings.bars, DEFAULT_STATUSLINE_SETTINGS.bars);
   assert.deepEqual(result.settings.thresholds, DEFAULT_STATUSLINE_SETTINGS.thresholds);

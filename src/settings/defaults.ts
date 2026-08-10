@@ -126,7 +126,7 @@ const DEFAULT_LAYOUT = {
   placement: "below" as ProviderPlacement,
   maxWidth: 0,
   segmentOrder: [...SEGMENT_ORDER] as SegmentId[],
-  narrowPriority: ["time", "throughput", "project", "effort", "model", "session"] as SegmentId[],
+  narrowPriority: ["time", "throughput", "project", "effort", "model", "session", "extensions"] as SegmentId[],
 };
 
 /** Default providers group. */
@@ -142,6 +142,7 @@ const DEFAULT_SEGMENTS: Record<SegmentId, boolean> = {
   project: true,
   model: true,
   effort: true,
+  extensions: true,
   context: true,
   session: true,
   throughput: true,
@@ -151,8 +152,8 @@ const DEFAULT_SEGMENTS: Record<SegmentId, boolean> = {
 /**
  * Default statusline settings reproducing current behavior where meaningful.
  * - enabled: true (footer on by default)
- * - segmentOrder: [project, model, effort, context, session, throughput, time]
- * - narrowPriority: [time, throughput, project, effort, model, session] (context preserved last)
+ * - segmentOrder: [project, model, effort, extensions, context, session, throughput, time]
+ * - narrowPriority: [time, throughput, project, effort, model, session, extensions] (context preserved last)
  * - bars: rounded width 12, fill '█', empty '░', rounded caps, showPercent true
  * - providerRows: 'newline' (one provider per line)
  * - thresholds: 80/95 warning/critical
@@ -161,7 +162,7 @@ const DEFAULT_SEGMENTS: Record<SegmentId, boolean> = {
  * - separators main: ' >' with one space after it
  */
 export const DEFAULT_STATUSLINE_SETTINGS: StatuslineSettings = {
-  version: 1,
+  version: CURRENT_VERSION,
   enabled: true,
   providers: DEFAULT_PROVIDERS,
   layout: DEFAULT_LAYOUT,

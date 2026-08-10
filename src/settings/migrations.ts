@@ -1,7 +1,66 @@
-import type { StatuslineSettings, ProviderConfiguration, WindowConfiguration, SegmentId } from "./schema.ts";
+import { CURRENT_VERSION, type StatuslineSettings, type ProviderConfiguration, type WindowConfiguration, type SegmentId } from "./schema.ts";
 import { DEFAULT_STATUSLINE_SETTINGS, createProviderConfig, createWindowConfig } from "./defaults.ts";
 import { mergeSettings } from "./legacy.ts";
 import { SEGMENT_ORDER } from "../segments.ts";
+
+const VERSION_ONE_SEGMENTS = new Set<string>(SEGMENT_ORDER.filter((id) => id !== "extensions"));
+
+function hasVersionOneSegment(value: unknown[]): boolean {
+  return value.some((item) => typeof item === "string" && VERSION_ONE_SEGMENTS.has(item));
+}
+
+function insertExtensionStatus(value: unknown, placement: "ordered" | "drop-last"): unknown {
+  if (!Array.isArray(value) || value.includes("extensions") || !hasVersionOneSegment(value)) return value;
+  const next = [...value];
+  if (placement === "drop-last") {
+    next.push("extensions");
+    return next;
+  }
+  const context = next.indexOf("context");
+  const effort = next.indexOf("effort");
+  const index = context >= 0 ? context : effort >= 0 ? effort + 1 : next.length;
+  next.splice(index, 0, "extensions");
+  return next;
+}
+
+/** Upgrade a complete schema-v1 document without disturbing customized ordering or spacing. */
+export function migrateVersionOneSettings(source: Record<string, unknown>): Record<string, unknown> {
+  const migrated = structuredClone(source);
+  migrated.version = CURRENT_VERSION;
+
+  if (migrated.layout && typeof migrated.layout === "object" && !Array.isArray(migrated.layout)) {
+    const layout = migrated.layout as Record<string, unknown>;
+    layout.segmentOrder = insertExtensionStatus(layout.segmentOrder, "ordered");
+    layout.narrowPriority = insertExtensionStatus(layout.narrowPriority, "drop-last");
+  }
+
+  if (migrated.providers && typeof migrated.providers === "object" && !Array.isArray(migrated.providers)) {
+    const records = (migrated.providers as Record<string, unknown>).records;
+    if (records && typeof records === "object" && !Array.isArray(records)) {
+      for (const value of Object.values(records as Record<string, unknown>)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        const provider = value as Record<string, unknown>;
+        const activeModel = provider.activeModel && typeof provider.activeModel === "object" && !Array.isArray(provider.activeModel)
+          ? provider.activeModel as Record<string, unknown>
+          : {};
+        if (!("extensions" in activeModel)) activeModel.extensions = "default";
+        provider.activeModel = activeModel;
+        provider.supportedOverrides = insertExtensionStatus(provider.supportedOverrides, "drop-last");
+      }
+    }
+  }
+
+  // Adopt the spacing correction only for the exact v1 default; explicit Custom spacing remains.
+  if (migrated.separators && typeof migrated.separators === "object" && !Array.isArray(migrated.separators)) {
+    const separators = migrated.separators as Record<string, unknown>;
+    if (separators.preset === "Default" && separators.main === " >" && separators.projectGit === " > "
+      && separators.padding === "" && separators.spacingBefore === 0 && separators.spacingAfter === 0) {
+      separators.spacingAfter = 1;
+    }
+  }
+
+  return migrated;
+}
 
 /** Legacy settings shape (from src/config.ts). */
 interface LegacySettings {
@@ -70,7 +129,7 @@ export function migrateLegacySettings(legacy: unknown): Partial<StatuslineSettin
     placement: "below",
     maxWidth: 0,
     segmentOrder: SEGMENT_ORDER.map((id) => id),
-    narrowPriority: ["time", "throughput", "project", "effort", "model", "session"] as SegmentId[],
+    narrowPriority: ["time", "throughput", "project", "effort", "model", "session", "extensions"] as SegmentId[],
   };
 
   // Segments global visibility

@@ -133,6 +133,7 @@ test("schema: activeModel three-state values", () => {
     project: "on",
     model: "off",
     effort: "default",
+    extensions: "default",
     context: "default",
     session: "on",
     throughput: "off",
@@ -252,7 +253,7 @@ test("schema: thresholds per-provider optional override", () => {
 });
 
 test("schema: CURRENT_VERSION const exported", () => {
-  assert.equal(CURRENT_VERSION, 1);
+  assert.equal(CURRENT_VERSION, 2);
   assert.equal(typeof CURRENT_VERSION, "number");
 });
 

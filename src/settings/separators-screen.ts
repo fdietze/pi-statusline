@@ -21,6 +21,7 @@ const SEGMENT_LABELS: Record<SegmentId, string> = {
   project: "Project / Git",
   model: "Model",
   effort: "Thinking",
+  extensions: "Extension statuses",
   context: "Context",
   session: "Session quota",
   throughput: "Throughput",

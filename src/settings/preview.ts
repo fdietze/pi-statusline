@@ -174,6 +174,7 @@ function resolveCurrentPreview(input: PreviewInput): { label: string; ctx: Resol
       cwd: live.runtime.cwd,
       thinkingLevel: live.runtime.thinkingLevel,
       contextUsage: live.runtime.contextUsage,
+      extensionStatuses: live.runtime.extensionStatuses,
       throughput: live.runtime.throughput,
       activeMs: live.runtime.activeMs,
       elapsedMs: live.runtime.elapsedMs,

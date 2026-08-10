@@ -1,10 +1,10 @@
 # @shvax/pi-statusline
 
-A configurable, single-line footer for [pi](https://github.com/earendil-works/pi-mono). It uses the active pi theme for semantic colors, shows only the data available for the active model and provider, and drops lower-priority segments before truncating at narrow widths.
+A configurable, single-line footer for [pi](https://github.com/earendil-works/pi-mono). It uses the active pi theme for semantic colors, shows only the data available for the active model and provider, includes statuses published by other extensions, and drops lower-priority segments before truncating at narrow widths.
 
 ```text
 📁 pi-statusline  main ✓ > 🤖 qwen36-coder > 🧠 medium > 🪟  55.0%/1.0M > ⚡↑1.2k ↓74 t/s > ⏳ 12m34s
-📁 pi-statusline  main ↑2 > 🤖 claude-sonnet-5 > 🧠 high > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h > ⏳ 8m02s
+📁 pi-statusline  main ↑2 > 🤖 claude-sonnet-5 > 🧠 high > FAST > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h > ⏳ 8m02s
 📁 pi-statusline  main ✓ > 🤖 gpt-5 > 🧠 high > 🪟  12.0%/400K > 🧾 ↑128K ↓34K $0.512 > ⏳ 3m20s
 anthropic 5h ╺━━━━━━━━━━╸ 100% ↻1h44m >wk ╺──────────╴ 12% ↻6d5h
 openai-codex wk ╺━━━━━━━━──╴ 79% ↻4d17h
@@ -36,12 +36,15 @@ At full width, segments render in the order below. When the line no longer fits,
 | `project` | on | Current directory name and compact Git HUD |
 | `model` | on | Active model id |
 | `effort` | on | Thinking level; hidden for non-reasoning models |
+| `extensions` | on | Statuses published through Pi's `ctx.ui.setStatus()`, preserving publisher order and styling |
 | `context` | on | Context percent and window; green below 120K tokens, orange from 120K, red from 170K (75%/90% also warn for smaller windows) |
 | `session` | on | Available subscription usage windows and reset countdowns; Codex labels come from the account's current limits |
 | `throughput` | on | Token throughput, adapted to how the model is billed — live `↑/↓` rates, a running `🧾` token/cost ledger, or nothing (see below) |
 | `time` | on | Live-ticking cumulative active turn time |
 
 The Git HUD defaults on inside repositories: `main ✓`. It shows `↓` incoming/behind and `↑` outgoing/ahead counts; `✓` means neither is pending. Local working-tree changes are intentionally ignored. Colors use the active theme's accent, success, warning, and error roles.
+
+Extension statuses are read from Pi's footer data on every render, so a `ctx.ui.setStatus()` update appears without coupling this footer to a particular extension. Multiple statuses retain Pi's map order and any ANSI styling supplied by their publishers. They are dropped only after the other default narrow-priority segments when the terminal cannot fit them.
 
 Icons default to the **emoji** style. The **Icons** section of `/statusline` switches the whole line to Nerd Font, Unicode, ASCII, minimal, or none (ASCII and none are safe fallbacks for terminals without glyph support), and overrides the symbols the footer actually renders plus provider icons. Optional extras default off: `cost` (appends session `$cost` to the model segment), `sessionElapsed`, `lastTurn`, and `pending` — all toggleable in **Display**.
 
@@ -59,7 +62,7 @@ The app has three sections:
 
 The app opens a draft cloned from your live settings, renders a live preview through the real footer renderer, and writes only on **Save**. Saving is persist-first: the file is written before the live settings are swapped, so a failed write changes nothing. **Escape** on a dirty draft offers Save / Discard / Cancel; a clean draft closes immediately. Root, section, and provider resets update only the draft until you save.
 
-Settings persist as a versioned document in `~/.pi/agent/statusline.json`. An unversioned document from an earlier release is migrated once into the new shape on first load and becomes durable only on your next save. A document from a newer schema version than this extension supports opens read-only and is never overwritten. Provider refresh runs no faster than once every 10 seconds per provider (the settings preview itself performs no I/O, but the background coordinator keeps running and an eligible provider can be refreshed on demand); a shared cross-process cache (`~/.pi/agent/statusline/provider-usage/`) retains the last result for up to 5 minutes so a new session renders immediately and only one process fetches each provider.
+Settings persist as a versioned document in `~/.pi/agent/statusline.json`. An unversioned document from an earlier release is migrated once into the new shape on first load and becomes durable only on your next save. Schema-version-1 settings are upgraded in memory with the extension-status segment inserted into their existing custom order and drop priority; saving makes that upgrade durable. A document from a newer schema version than this extension supports opens read-only and is never overwritten. Provider refresh runs no faster than once every 10 seconds per provider (the settings preview itself performs no I/O, but the background coordinator keeps running and an eligible provider can be refreshed on demand); a shared cross-process cache (`~/.pi/agent/statusline/provider-usage/`) retains the last result for up to 5 minutes so a new session renders immediately and only one process fetches each provider.
 
 ## Provider tracking
 

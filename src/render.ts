@@ -1,5 +1,5 @@
 import { renderBar, DEFAULT_STOPS, type BarStyle, type ColorStops } from "./bar.ts";
-import { composeSegments, createSegments, SEGMENT_ORDER, type SegmentId } from "./segments.ts";
+import { composeSegments, createSegments, SEGMENT_ORDER } from "./segments.ts";
 import {
   billingMode,
   deriveContext,
@@ -15,6 +15,11 @@ import { estimateTokens, type ThroughputLevel } from "./throughput.ts";
 import type { RateLimitWindow } from "./ratelimit.ts";
 import type { ResetFormat, StatuslineSettings } from "./settings/schema.ts";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
+
+/** Match Pi's single-line status normalization while preserving extension-provided ANSI styling. */
+function normalizeExtensionStatus(status: string): string {
+  return status.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
+}
 
 /**
  * Single source of truth for the statusline's main line. Both the live footer
@@ -64,6 +69,8 @@ export interface FooterSnapshot {
   activeProviderHasRow?: boolean;
   /** Placeholder shown for an eligible subscription provider before its windows load (e.g. "5h — wk —"). */
   sessionPlaceholder?: string;
+  /** Generic status values published by Pi extensions, in FooterData map order. */
+  extensionStatuses?: readonly string[];
   now?: number;
 }
 
@@ -308,6 +315,11 @@ export function renderMainLine(
     return glyph ? `${glyph} ${value}` : value;
   };
 
+  const extensionStatuses = (snap.extensionStatuses ?? [])
+    .map(normalizeExtensionStatus)
+    .filter((status) => status.length > 0)
+    .join(" ");
+
   const visibility = { ...settings.segments };
   const activeModel = snap.model?.provider ? settings.providers.records[snap.model.provider]?.activeModel : undefined;
   if (activeModel) {
@@ -330,6 +342,8 @@ export function renderMainLine(
       return paint("muted", `${withSpace("model", label)}${cost === undefined ? "" : ` $${cost.toFixed(3)}`}`);
     },
     effort: () => effort ? paint("muted", withSpace("thinking", effort)) : "",
+    // Status values can carry extension-provided ANSI styling; preserve them verbatim.
+    extensions: () => extensionStatuses,
     context: () => {
       if (!context) return "";
       const glyph = icon(settings, "context");

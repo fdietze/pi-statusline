@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
     project: true,
     model: true,
     effort: true,
+    extensions: true,
     context: true,
     session: true,
     throughput: true,

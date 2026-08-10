@@ -4,6 +4,8 @@ import { DEFAULT_STATUSLINE_SETTINGS } from "../src/settings/defaults.ts";
 import { renderMainLine, resolveWindowDisplay, renderProviderRows, providerHasRow, sourceRenders, type ProviderRowSource } from "../src/render.ts";
 import type { RateLimitWindow } from "../src/ratelimit.ts";
 import type { StatuslineSettings } from "../src/settings/schema.ts";
+import { parseStatuslineSettings } from "../src/settings/validation.ts";
+import { visibleWidth } from "@earendil-works/pi-tui";
 
 const fiveHour: RateLimitWindow = { key: "five-hour", label: "5h", used: 0.23, resetAt: 9_000 };
 const weekly: RateLimitWindow = { key: "weekly", label: "wk", used: 0.41 };
@@ -105,6 +107,51 @@ test("renderMainLine applies active-provider segment overrides", () => {
 
   assert.equal(line.includes("project"), false);
   assert.ok(line.includes("claude"));
+});
+
+test("generic extension statuses preserve order, styling, and display width", () => {
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
+  for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
+  settings.segments.extensions = true;
+  settings.layout.segmentOrder = ["extensions"];
+  settings.layout.narrowPriority = ["extensions"];
+
+  const render = (extensionStatuses: string[], width = 100) => renderMainLine(settings, {
+    cwd: "/tmp/project",
+    extensionStatuses,
+  }, width);
+
+  assert.equal(render([]), "");
+  settings.segments.extensions = false;
+  assert.equal(render(["FAST"]), "", "the generic segment honors its visibility setting");
+  settings.segments.extensions = true;
+  assert.equal(render(["FAST"]), "FAST");
+  assert.equal(render(["FAST", "REVIEW"]), "FAST REVIEW");
+  assert.equal(render(["  FAST\n\tMODE  ", "", "\r\n"]), "FAST MODE");
+
+  const styled = "\x1b[31mFAST\x1b[0m";
+  assert.equal(render([styled]), styled);
+  assert.equal(visibleWidth(render([styled])), 4);
+  assert.equal(render([styled], 3), "", "extension statuses drop cleanly under width pressure");
+});
+
+test("version 1 settings drop migrated statuses atomically at narrow widths", () => {
+  const old = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as unknown as Record<string, any>;
+  old.version = 1;
+  old.layout.segmentOrder = ["project", "model", "effort", "context", "session", "throughput", "time"];
+  old.layout.narrowPriority = ["time", "throughput", "project", "effort", "model", "session"];
+  delete old.segments.extensions;
+  const settings = parseStatuslineSettings(old).settings;
+
+  const line = renderMainLine(settings, {
+    cwd: "/tmp/project",
+    contextUsage: { percent: 20, tokens: 20_000, contextWindow: 100_000 },
+    extensionStatuses: ["\x1b[31mFAST-LONG-STATUS\x1b[0m"],
+  }, 20);
+
+  assert.ok(visibleWidth(line) <= 20, line);
+  assert.ok(line.includes("20.0%/100K"), line);
+  assert.equal(line.includes("FA"), false, `status must drop as a segment, not truncate: ${line}`);
 });
 
 test("default separator leaves space before each following emoji segment", () => {

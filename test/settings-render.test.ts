@@ -111,9 +111,9 @@ test("resolution: 'default' inherits global", () => {
 });
 
 test("resolution: order validates and falls back to defaults when empty/invalid", () => {
-  assert.deepEqual(resolveOrder(DEFAULT_STATUSLINE_SETTINGS).segmentOrder, ["project", "model", "effort", "context", "session", "throughput", "time"]);
+  assert.deepEqual(resolveOrder(DEFAULT_STATUSLINE_SETTINGS).segmentOrder, ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
   const bad = settingsWith({ layout: { ...DEFAULT_STATUSLINE_SETTINGS.layout, segmentOrder: ["bogus" as SegmentId] } });
-  assert.deepEqual(resolveOrder(bad).segmentOrder, ["project", "model", "effort", "context", "session", "throughput", "time"]);
+  assert.deepEqual(resolveOrder(bad).segmentOrder, ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
 });
 
 test("resolution: resolveBarConfig passes through and bounds bar settings", () => {

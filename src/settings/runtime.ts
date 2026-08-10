@@ -76,7 +76,7 @@ export function reconcileProviders(settings: StatuslineSettings, registry: Avail
 }
 
 /** Names the /statusline toggle command accepts (segments + legacy extras, with aliases). */
-const SEGMENT_TOGGLE_NAMES = new Set<string>(["project", "model", "effort", "context", "session", "throughput", "time"]);
+const SEGMENT_TOGGLE_NAMES = new Set<string>(["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
 const TOGGLE_ALIASES: Record<string, string> = {
   "session-bars": "session",
   elapsed: "sessionElapsed",
@@ -107,7 +107,7 @@ export function applyToggle(settings: StatuslineSettings, rawName: string): Stat
 export function formatStatusSummary(settings: StatuslineSettings): string {
   const rows: Array<[string, boolean]> = [
     ["footer", settings.enabled],
-    ...(["project", "model", "effort", "context", "session", "throughput", "time"] as const).map((s) => [s, settings.segments[s]] as [string, boolean]),
+    ...(["project", "model", "effort", "extensions", "context", "session", "throughput", "time"] as const).map((s) => [s, settings.segments[s]] as [string, boolean]),
     ...(["branch", "cost", "sessionElapsed", "lastTurn", "pending"] as const).map((e) => [e, settings.extras[e]] as [string, boolean]),
     ["nerdFont", settings.icons.style === "nerdfont"],
   ];

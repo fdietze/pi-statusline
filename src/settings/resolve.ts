@@ -20,6 +20,8 @@ export interface RuntimeSnapshot {
   activeProvider?: string;
   thinkingLevel?: string;
   contextUsage?: ContextUsage;
+  /** Generic extension status values in stable FooterData map order. */
+  extensionStatuses?: readonly string[];
   throughput?: { inputRate?: number; outputRate?: number };
   /** Active subscription quota windows, when the active provider reports them. */
   sessionWindows?: RateLimitWindow[];
@@ -51,6 +53,8 @@ function isApplicable(id: SegmentId, ctx: ResolutionContext): boolean {
     case "effort":
       // Non-reasoning models have no effort level to show.
       return runtime.model?.reasoning === true;
+    case "extensions":
+      return Boolean(runtime.extensionStatuses?.some((status) => status.length > 0));
     case "context":
       // Hide when no context usage (or right after compaction, where percent is null).
       return Boolean(runtime.contextUsage && runtime.contextUsage.percent !== null);
@@ -152,6 +156,7 @@ export function composeFooterLine(
       : undefined,
     thinkingLevel: runtime.thinkingLevel,
     contextUsage: runtime.contextUsage,
+    extensionStatuses: runtime.extensionStatuses,
     pending: runtime.pending,
     // billingMode(isLocalEndpoint(baseUrl), subscription): local endpoints win regardless. Fall
     // back to the capability-derived billing for fixture modes that don't pass it explicitly.

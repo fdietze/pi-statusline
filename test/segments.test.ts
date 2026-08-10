@@ -9,19 +9,19 @@ const namedSegments = () => createSegments(enabled, Object.fromEntries(
 ) as Record<(typeof SEGMENT_ORDER)[number], () => string>);
 
 test("segments render in display order and drop disabled or empty values", () => {
-  assert.deepEqual([...SEGMENT_ORDER], ["project", "model", "effort", "context", "session", "throughput", "time"]);
+  assert.deepEqual([...SEGMENT_ORDER], ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
   const withoutEffort = { ...enabled, effort: false };
   const renderers = Object.fromEntries(SEGMENT_ORDER.map((id) => [id, () => id === "context" ? "" : id])) as Record<(typeof SEGMENT_ORDER)[number], () => string>;
-  assert.equal(composeSegments(createSegments(withoutEffort, renderers), 200), "project · model · session · throughput · time");
+  assert.equal(composeSegments(createSegments(withoutEffort, renderers), 200), "project · model · extensions · session · throughput · time");
 });
 
 test("preserves display order while dropping lowest-priority segments", () => {
   const separator = " > ";
-  const withoutTime = "project > model > effort > context > session > throughput";
+  const withoutTime = "project > model > effort > extensions > context > session > throughput";
   assert.equal(composeSegments(namedSegments(), visibleWidth(withoutTime), separator), withoutTime);
 
-  const protectedPair = "context > session";
-  assert.equal(composeSegments(namedSegments(), visibleWidth(protectedPair), separator), protectedPair);
+  const protectedGroup = "extensions > context > session";
+  assert.equal(composeSegments(namedSegments(), visibleWidth(protectedGroup), separator), protectedGroup);
   assert.equal(composeSegments(namedSegments(), 10, separator), "context");
   assert.ok(composeSegments(namedSegments(), 4, separator).startsWith("cont"));
 });

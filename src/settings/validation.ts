@@ -2,6 +2,7 @@ import type { StatuslineSettings, ParsedSettings, Version, SegmentId } from "./s
 import { CURRENT_VERSION } from "./schema.ts";
 import { DEFAULT_STATUSLINE_SETTINGS } from "./defaults.ts";
 import { SEGMENT_ORDER } from "../segments.ts";
+import { migrateVersionOneSettings } from "./migrations.ts";
 
 const VALID_SEGMENT_IDS = new Set<string>(SEGMENT_ORDER);
 
@@ -440,19 +441,23 @@ export function parseStatuslineSettings(unknown: unknown): ParsedSettings {
     return { settings: structuredClone(DEFAULT_STATUSLINE_SETTINGS) };
   }
 
-  const input = unknown as Record<string, unknown>;
-  const version = parseVersion(input.version);
+  const source = unknown as Record<string, unknown>;
+  const version = parseVersion(source.version);
 
   // Future version: read-only and returned UNCHANGED (no normalization/bounding).
   // Preserve the document's own values; collect only the unknown top-level keys into __unknown.
   // structuredClone de-aliases nested default objects so a read-only doc can't leak into the singleton.
   if (version > CURRENT_VERSION) {
-    const __unknown = collectUnknown(input, KNOWN_TOP_LEVEL_FIELDS);
+    const __unknown = collectUnknown(source, KNOWN_TOP_LEVEL_FIELDS);
     return {
-      settings: structuredClone({ ...DEFAULT_STATUSLINE_SETTINGS, ...input, version, __unknown }) as unknown as StatuslineSettings,
+      settings: structuredClone({ ...DEFAULT_STATUSLINE_SETTINGS, ...source, version, __unknown }) as unknown as StatuslineSettings,
       readOnly: true,
     };
   }
+
+  // Upgrade complete v1 documents before normalizing. Unversioned legacy documents are converted
+  // by loadRuntimeSettings() before they reach this parser.
+  const input = Number(version) === 1 ? migrateVersionOneSettings(source) : source;
 
   // Current or past version: normalize and validate
   const providers = parseProviders(input.providers);

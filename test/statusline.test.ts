@@ -62,6 +62,59 @@ test("stops the live timer when settled or the footer is disposed", async () => 
   }
 });
 
+test("reads generic extension statuses from footer data on every render", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  const statuses = new Map<string, string>();
+  let reads = 0;
+  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
+  const pi = {
+    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+    registerCommand: () => {},
+    getThinkingLevel: () => "off",
+    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+  } as never;
+  const ctx = {
+    cwd: process.cwd(),
+    getContextUsage: () => undefined,
+    hasPendingMessages: () => false,
+    sessionManager: { getBranch: () => [] },
+    ui: {
+      setFooter: (factory: any) => {
+        footer = factory?.(
+          { requestRender: () => {} },
+          { fg: (_: string, text: string) => text, getColorMode: () => "16", getFgAnsi: () => "" },
+          {
+            getGitBranch: () => null,
+            getExtensionStatuses: () => {
+              reads++;
+              return statuses;
+            },
+            getAvailableProviderCount: () => 1,
+            onBranchChange: () => () => {},
+          },
+        );
+      },
+      notify: () => {},
+    },
+  } as never;
+
+  statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
+  await handlers.get("session_start")!({}, ctx);
+  assert.equal(footer!.render(200)[0]!.includes("FAST"), false);
+
+  const styled = "\x1b[31mREVIEW\x1b[0m";
+  statuses.set("fast", "FAST");
+  statuses.set("review", styled);
+  const populated = footer!.render(200)[0]!;
+  assert.ok(populated.indexOf("FAST") < populated.indexOf("REVIEW"), populated);
+  assert.ok(populated.includes(styled), populated);
+
+  statuses.clear();
+  assert.equal(footer!.render(200)[0]!.includes("FAST"), false);
+  assert.equal(reads, 3, "footer data must be queried on each render");
+  footer?.dispose?.();
+});
+
 test("renders emoji segments with themed semantic colors", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   const execCalls: unknown[][] = [];

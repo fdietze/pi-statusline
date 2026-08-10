@@ -1,8 +1,8 @@
 import type { SegmentId } from "../segments.ts";
 export type { SegmentId } from "../segments.ts";
 
-/** Current schema version. Increment when making breaking changes. */
-export const CURRENT_VERSION = 1 as const;
+/** Current schema version. Version 2 adds the generic extension-status segment. */
+export const CURRENT_VERSION = 2 as const;
 
 export type Version = typeof CURRENT_VERSION;
 

@@ -47,8 +47,9 @@ export default function statusline(
   let sessionActive = false;
   let sessionEpoch = 0;
   let turnActive = false;
-  // Last git branch the footer rendered, captured so the settings preview can show the same HUD.
+  // Live footer-only values captured so the settings preview can show the same HUD and statuses.
   let liveGitBranch: string | null | undefined;
+  let liveExtensionStatuses: string[] = [];
   // True while the settings overlay is open; keeps commitSettings from flashing the live footer.
   let settingsOverlayOpen = false;
   let providerRefresh: ProviderRefreshCoordinator | undefined;
@@ -335,12 +336,16 @@ export default function statusline(
           const sessionPlaceholder = !activeProviderHasRow && provider === "anthropic" && ctx.model !== undefined && ctx.modelRegistry.isUsingOAuth(ctx.model)
             ? theme.fg("muted", "5h — wk —")
             : "";
+          // Query on every render so ctx.ui.setStatus() changes are reflected immediately. The
+          // optional fallback keeps the fork loadable on older Pi versions without FooterData.
+          liveExtensionStatuses = [...(footerData.getExtensionStatuses?.() ?? new Map<string, string>()).values()];
           lastRenderedTime = tickLabel();
           const line = renderMainLine(settings, {
             cwd: ctx.cwd,
             model: ctx.model,
             thinkingLevel: pi.getThinkingLevel(),
             contextUsage: ctx.getContextUsage(),
+            extensionStatuses: liveExtensionStatuses,
             gitBranch: (liveGitBranch = footerData.getGitBranch()),
             gitStatus,
             pending: ctx.hasPendingMessages(),
@@ -453,6 +458,7 @@ export default function statusline(
           activeProvider: ctx.model?.provider,
           thinkingLevel: pi.getThinkingLevel(),
           contextUsage: ctx.getContextUsage() ?? undefined,
+          extensionStatuses: liveExtensionStatuses,
           throughput: { inputRate: snapshot.avgInputRate, outputRate: snapshot.avgOutputRate },
           sessionWindows: limits,
           activeMs: snapshot.activeMs + meter.liveElapsedMs(),
@@ -554,6 +560,7 @@ export default function statusline(
       limits = (provider === "anthropic" ? providerUsageCache.get(provider) : providerUsageCache.getFresh(provider))?.limits ?? [];
     }
     gitStatus = undefined;
+    liveExtensionStatuses = [];
     const providers = availableProviders(ctx);
     // Saved providers may not be available in this process yet. Keep their last fresh cross-session
     // snapshot visible while a session that can authenticate them refreshes it.
@@ -594,6 +601,7 @@ export default function statusline(
     stopGitTick();
     stopAnthropicRetry();
     providerRefresh?.stop();
+    liveExtensionStatuses = [];
   });
 
   pi.on("turn_start", (event) => {
