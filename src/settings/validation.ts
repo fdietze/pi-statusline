@@ -309,9 +309,9 @@ function parseSeparators(value: unknown): StatuslineSettings["separators"] {
     provider: sep(input.provider, "\n"),
     iconLabel: sep(input.iconLabel, ""),
     labelValue: sep(input.labelValue, " "),
-    spacingBefore: clamp(typeof input.spacingBefore === "number" ? input.spacingBefore : 0, 0, 10),
-    spacingAfter: clamp(typeof input.spacingAfter === "number" ? input.spacingAfter : 0, 0, 10),
-    trailingSpacing: clamp(typeof input.trailingSpacing === "number" ? input.trailingSpacing : 0, 0, 10),
+    spacingBefore: clamp(typeof input.spacingBefore === "number" ? input.spacingBefore : DEFAULT_STATUSLINE_SETTINGS.separators.spacingBefore, 0, 10),
+    spacingAfter: clamp(typeof input.spacingAfter === "number" ? input.spacingAfter : DEFAULT_STATUSLINE_SETTINGS.separators.spacingAfter, 0, 10),
+    trailingSpacing: clamp(typeof input.trailingSpacing === "number" ? input.trailingSpacing : DEFAULT_STATUSLINE_SETTINGS.separators.trailingSpacing, 0, 10),
     padding: sep(input.padding, ""),
     preset: presets.includes(input.preset as typeof presets[number]) ? (input.preset as typeof presets[number]) : "Default",
   };

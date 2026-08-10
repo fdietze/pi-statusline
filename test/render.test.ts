@@ -107,6 +107,24 @@ test("renderMainLine applies active-provider segment overrides", () => {
   assert.ok(line.includes("claude"));
 });
 
+test("default separator leaves space before each following emoji segment", () => {
+  const line = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, {
+    cwd: "/tmp/nixos",
+    gitBranch: "main",
+    model: { id: "gpt-5.6-sol", provider: "openai-codex", reasoning: true },
+    thinkingLevel: "high",
+    contextUsage: { percent: 13.2, tokens: 36_000, contextWindow: 272_000 },
+    subscription: true,
+    meter: { activeMs: 60_000 },
+  }, 200);
+
+  assert.ok(line.includes("nixos > main"), line);
+  for (const glyph of ["🤖", "🧠", "🪟", "⏳"]) {
+    assert.ok(line.includes(` > ${glyph}`), `missing separator space before ${glyph}: ${line}`);
+    assert.equal(line.includes(`>${glyph}`), false, `separator touches ${glyph}: ${line}`);
+  }
+});
+
 test("bar thresholds and truecolor toggle control rendered colors", () => {
   const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
   settings.bars.warnAt = 40;

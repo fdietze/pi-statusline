@@ -62,9 +62,10 @@ test("defaults: timing refresh 10000 min, maxCacheAge 300000", () => {
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.timing.maxCacheAgeMs, 300000);
 });
 
-test("defaults: icon style emoji, separators main ' >'", () => {
+test("defaults: emoji icons and spaced main separator", () => {
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.icons.style, "emoji");
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.separators.main, " >");
+  assert.equal(DEFAULT_STATUSLINE_SETTINGS.separators.spacingAfter, 1);
 });
 
 test("defaults: createProviderConfig returns fresh config", () => {
