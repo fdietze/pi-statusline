@@ -91,7 +91,7 @@ const GIT_ROLES: Record<GitTokenKind, "accent" | "success" | "warning" | "error"
 };
 
 const ICON_PRESETS: Record<StatuslineSettings["icons"]["style"], Record<string, string>> = {
-  emoji: { project: "📁", model: "🤖", thinking: "🧠", context: "🪟", throughput: "⚡", time: "⏳" },
+  emoji: { project: "📁", model: "🤖", thinking: "🧠", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌" },
   unicode: { project: "◆", model: "◇", thinking: "◌", context: "▣", throughput: "↕", time: "◷" },
   ascii: { project: "P", model: "M", thinking: "T", context: "C", throughput: "R", time: "@" },
   nerdfont: { project: "󰉋", model: "󰧑", thinking: "󰔟", context: "󰍛", throughput: "󰓅", time: "󰥔" },
@@ -344,7 +344,10 @@ export function renderMainLine(
   }
   const rightExtensionStatuses = visibility.extensions
     ? rightAlignedStatusKeys
-      .map((key) => statusesByKey.get(key))
+      .map((key) => {
+        const value = statusesByKey.get(key);
+        return value === undefined ? undefined : withSpace(key, value);
+      })
       .filter((value): value is string => value !== undefined)
       .join(" ")
     : "";

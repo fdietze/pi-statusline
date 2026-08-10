@@ -154,14 +154,15 @@ test("configured extension status keys align right without moving other statuses
     ],
   } as never;
 
+  const decoratedMcp = `🔌 ${styledMcp}`;
   const wide = renderMainLine(settings, snapshot, 24);
-  assert.equal(wide, `FAST${" ".repeat(13)}${styledMcp}`);
+  assert.equal(wide, `FAST${" ".repeat(10)}${decoratedMcp}`);
   assert.equal(visibleWidth(wide), 24);
   assert.equal(renderMainLine(settings, snapshot, 10), "FAST", "the right status drops before left content");
   assert.equal(renderMainLine(settings, {
     cwd: "/tmp/project",
     extensionStatuses: [{ key: "mcp", value: styledMcp }],
-  } as never, 10), `   ${styledMcp}`);
+  } as never, 10), decoratedMcp);
 
   settings.separators.trailingSpacing = 2;
   const styledWideMcp = "\x1b[36mMCP 🧠\x1b[0m";
