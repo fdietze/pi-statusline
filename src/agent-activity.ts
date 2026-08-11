@@ -64,7 +64,26 @@ export class AgentActivitySources {
 
 export interface ProgressTerminal {
   setProgress(active: boolean): void;
+  start?(...args: unknown[]): unknown;
 }
+
+interface TerminalProgressState {
+  nativeActive: boolean;
+  effectiveActive: boolean;
+}
+
+interface TerminalProgressOwnership {
+  version: 1;
+  release(): TerminalProgressState;
+}
+
+const TERMINAL_PROGRESS_OWNER = Symbol.for("futile.pi-statusline.terminal-progress-multiplexer.v1");
+const readTerminalOwner = (terminal: ProgressTerminal): TerminalProgressOwnership | undefined => {
+  const value = Reflect.get(terminal, TERMINAL_PROGRESS_OWNER) as Partial<TerminalProgressOwnership> | undefined;
+  return value?.version === 1 && typeof value.release === "function"
+    ? value as TerminalProgressOwnership
+    : undefined;
+};
 
 /**
  * Arbitrates Pi's native foreground request with one aggregate external request while delegating
@@ -75,6 +94,12 @@ export class TerminalProgressMultiplexer {
   private readonly terminal: ProgressTerminal;
   private readonly originalMethod: ProgressTerminal["setProgress"];
   private readonly wrappedMethod: ProgressTerminal["setProgress"];
+  private readonly originalStart: ProgressTerminal["start"];
+  private readonly wrappedStart: ProgressTerminal["start"];
+  private readonly ownership: TerminalProgressOwnership = {
+    version: 1,
+    release: () => this.releaseForReplacement(),
+  };
   private nativeActive = false;
   private externalActive = false;
   private appliedActive = false;
@@ -82,24 +107,47 @@ export class TerminalProgressMultiplexer {
 
   constructor(terminal: ProgressTerminal, initialNativeActive = false) {
     this.terminal = terminal;
-    this.nativeActive = initialNativeActive;
-    this.appliedActive = initialNativeActive;
+    const previous = readTerminalOwner(terminal)?.release();
+    this.nativeActive = initialNativeActive || previous?.nativeActive === true;
+    // Preserve the physical state until the replacement receives the current external snapshot.
+    this.appliedActive = previous?.effectiveActive ?? this.nativeActive;
     this.originalMethod = terminal.setProgress;
+    this.originalStart = terminal.start;
     this.wrappedMethod = (active: boolean) => {
       if (this.disposed) {
-        this.originalMethod.call(this.terminal, active);
+        const current = this.terminal.setProgress;
+        (current === this.wrappedMethod ? this.originalMethod : current).call(this.terminal, active);
         return;
       }
       this.nativeActive = active;
       this.reconcile();
     };
+    this.wrappedStart = this.originalStart
+      ? (...args: unknown[]) => {
+        if (this.disposed) {
+          const current = this.terminal.start;
+          if (current && current !== this.wrappedStart) return current.apply(this.terminal, args);
+        }
+        const result = this.originalStart!.apply(this.terminal, args);
+        this.reassert();
+        return result;
+      }
+      : undefined;
     terminal.setProgress = this.wrappedMethod;
+    if (this.wrappedStart) terminal.start = this.wrappedStart;
+    Reflect.set(terminal, TERMINAL_PROGRESS_OWNER, this.ownership);
   }
 
   setExternal(active: boolean): void {
-    if (this.disposed || active === this.externalActive) return;
+    if (this.disposed) return;
     this.externalActive = active;
     this.reconcile();
+  }
+
+  /** Restart the underlying transport after Pi starts a replacement renderer. */
+  reassert(): void {
+    if (this.disposed || !(this.nativeActive || this.externalActive)) return;
+    this.originalMethod.call(this.terminal, true);
   }
 
   private reconcile(): void {
@@ -109,10 +157,35 @@ export class TerminalProgressMultiplexer {
     this.originalMethod.call(this.terminal, effective);
   }
 
+  private ownsTerminal(): boolean {
+    return readTerminalOwner(this.terminal) === this.ownership;
+  }
+
+  private restoreMethods(): void {
+    if (this.terminal.setProgress === this.wrappedMethod) this.terminal.setProgress = this.originalMethod;
+    if (this.wrappedStart && this.terminal.start === this.wrappedStart) this.terminal.start = this.originalStart;
+  }
+
+  private releaseForReplacement(): TerminalProgressState {
+    const state = {
+      nativeActive: this.nativeActive,
+      effectiveActive: this.nativeActive || this.externalActive,
+    };
+    if (this.disposed) return state;
+    this.disposed = true;
+    if (this.ownsTerminal()) {
+      this.restoreMethods();
+      Reflect.deleteProperty(this.terminal, TERMINAL_PROGRESS_OWNER);
+    }
+    return state;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    if (this.terminal.setProgress === this.wrappedMethod) this.terminal.setProgress = this.originalMethod;
+    if (!this.ownsTerminal()) return;
+    this.restoreMethods();
+    Reflect.deleteProperty(this.terminal, TERMINAL_PROGRESS_OWNER);
     // Remove only our external contribution; preserve Pi's last native request.
     if (this.appliedActive !== this.nativeActive) {
       this.appliedActive = this.nativeActive;

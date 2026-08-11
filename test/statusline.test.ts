@@ -124,6 +124,105 @@ test("arbitrates native and aggregate background terminal progress through the f
   await handlers.get("session_shutdown")!({ reason: "quit" });
 });
 
+test("reasserts aggregate progress after started TUI transitions but not an unstarted shutdown renderer", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  const busHandlers = new Map<string, Set<(data: unknown) => void>>();
+  const progressCalls: boolean[] = [];
+  const transportSetProgress = (active: boolean) => progressCalls.push(active);
+  const terminal = { setProgress: transportSetProgress, start: () => {} };
+  const tui = { mode: "regular", requestRender: () => {}, terminal };
+  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
+  const events = {
+    on: (channel: string, handler: (data: unknown) => void) => {
+      const listeners = busHandlers.get(channel) ?? new Set<(data: unknown) => void>();
+      listeners.add(handler);
+      busHandlers.set(channel, listeners);
+      return () => listeners.delete(handler);
+    },
+    emit: (channel: string, data: unknown) => {
+      for (const handler of busHandlers.get(channel) ?? []) handler(data);
+    },
+  };
+  const pi = {
+    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+    events,
+    registerCommand: () => {},
+    getThinkingLevel: () => "off",
+    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+  } as never;
+  const ctx = {
+    cwd: process.cwd(),
+    isIdle: () => true,
+    getContextUsage: () => undefined,
+    hasPendingMessages: () => false,
+    sessionManager: { getBranch: () => [] },
+    modelRegistry: { isUsingOAuth: () => false },
+    ui: {
+      setFooter: (factory: any) => {
+        footer = factory?.(
+          tui,
+          { fg: (_: string, text: string) => text, getColorMode: () => "16", getFgAnsi: () => "" },
+          { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
+        );
+      },
+      notify: () => {},
+    },
+  } as never;
+
+  statusline(pi, testCache(), join(cacheRoot, "mode-transition.json"));
+  await handlers.get("session_start")!({}, ctx);
+  events.emit("pi.agent-activity.v1:update", {
+    version: 1,
+    source: "subagents",
+    active: true,
+    terminalProgress: true,
+  });
+  assert.deepEqual(progressCalls, [true]);
+
+  transportSetProgress(false); // ProcessTerminal.stop() clears the physical transport.
+  tui.mode = "fullscreen";
+  terminal.start(); // TuiBase.start() starts the replacement renderer's shared terminal.
+  footer!.render(200);
+  assert.deepEqual(progressCalls, [true, false, true], "one forced reassertion after terminal start");
+
+  transportSetProgress(false);
+  tui.mode = "regular";
+  terminal.start();
+  footer!.render(200);
+  assert.deepEqual(progressCalls, [true, false, true, false, true]);
+
+  transportSetProgress(false);
+  tui.mode = "fullscreen";
+  footer!.render(200); // stopInteractiveTui() swaps mode with startRenderer=false, then renders.
+  assert.deepEqual(
+    progressCalls,
+    [true, false, true, false, true, false],
+    "an unstarted shutdown renderer cannot resurrect terminal progress",
+  );
+
+  events.emit("pi.agent-activity.v1:update", {
+    version: 1,
+    source: "subagents",
+    active: false,
+    terminalProgress: false,
+  });
+  assert.equal(progressCalls.at(-1), false);
+
+  const settledCalls = [...progressCalls];
+  events.emit("pi.agent-activity.v1:update", {
+    version: 1,
+    source: "subagents",
+    active: true,
+    terminalProgress: false,
+  });
+  tui.mode = "regular";
+  terminal.start();
+  footer!.render(200);
+  assert.deepEqual(progressCalls, settledCalls, "timer-only activity stays OSC-disabled across mode changes");
+  footer?.dispose?.();
+  await handlers.get("session_shutdown")!({ reason: "quit" });
+});
+
 test("raw background activity extends union time without changing foreground rates or requesting OSC", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   const busHandlers = new Map<string, Set<(data: unknown) => void>>();

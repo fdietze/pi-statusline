@@ -52,6 +52,35 @@ test("terminal multiplexer ORs native and external state through one underlying 
   assert.equal(terminal.setProgress, original);
 });
 
+test("terminal multiplexer reasserts effective progress after a transport restart", () => {
+  const calls: boolean[] = [];
+  const terminal = { setProgress: (active: boolean) => calls.push(active) };
+  const mux = new TerminalProgressMultiplexer(terminal);
+
+  mux.reassert();
+  assert.deepEqual(calls, [], "idle transport restarts stay idle");
+
+  mux.setExternal(true);
+  mux.reassert();
+  terminal.setProgress(true); // overlapping native source does not duplicate the logical edge
+  mux.reassert();
+  assert.deepEqual(calls, [true, true, true]);
+
+  terminal.setProgress(false); // external source still owns progress
+  mux.setExternal(false);
+  mux.reassert();
+  assert.deepEqual(calls, [true, true, true, false], "settled state is not spuriously reasserted");
+});
+
+test("terminal multiplexer reasserts native-only progress", () => {
+  const calls: boolean[] = [];
+  const terminal = { setProgress: (active: boolean) => calls.push(active) };
+  const mux = new TerminalProgressMultiplexer(terminal);
+  terminal.setProgress(true);
+  mux.reassert();
+  assert.deepEqual(calls, [true, true]);
+});
+
 test("terminal multiplexer disposal preserves an outstanding native request", () => {
   const calls: boolean[] = [];
   const terminal = { setProgress: (active: boolean) => calls.push(active) };
@@ -83,4 +112,89 @@ test("sequential reload cycles restore and reacquire terminal method ownership e
   second.dispose();
   assert.equal(terminal.setProgress, original);
   assert.deepEqual(calls, [true, false, true, false]);
+});
+
+test("overlapping reload takes terminal ownership without retaining the stale wrapper", () => {
+  const calls: boolean[] = [];
+  const transportSetProgress = (active: boolean) => calls.push(active);
+  const terminal = { setProgress: transportSetProgress };
+
+  const first = new TerminalProgressMultiplexer(terminal);
+  first.setExternal(true);
+  const second = new TerminalProgressMultiplexer(terminal);
+
+  second.setExternal(true);
+  transportSetProgress(false); // ProcessTerminal.stop() clears the physical transport.
+  second.reassert();
+  assert.deepEqual(calls, [true, false, true], "the replacement delegates to the real transport");
+
+  const replacementMethod = terminal.setProgress;
+  first.dispose();
+  assert.equal(terminal.setProgress, replacementMethod, "stale teardown cannot remove the new owner");
+  second.dispose();
+  assert.equal(terminal.setProgress, transportSetProgress);
+  assert.deepEqual(calls, [true, false, true, false]);
+});
+
+test("overlapping reload stays owner-safe when the replacement tears down first", () => {
+  const calls: boolean[] = [];
+  const transportSetProgress = (active: boolean) => calls.push(active);
+  const terminal = { setProgress: transportSetProgress };
+
+  const first = new TerminalProgressMultiplexer(terminal);
+  first.setExternal(true);
+  const second = new TerminalProgressMultiplexer(terminal);
+  second.setExternal(true);
+  second.dispose();
+  assert.equal(terminal.setProgress, transportSetProgress);
+
+  first.dispose();
+  assert.equal(terminal.setProgress, transportSetProgress);
+  assert.deepEqual(calls, [true, false]);
+});
+
+test("retained stale wrappers route native progress and starts through the replacement owner", () => {
+  const calls: Array<boolean | "start"> = [];
+  const transportSetProgress = (active: boolean) => calls.push(active);
+  const transportStart = () => calls.push("start");
+  const terminal = { setProgress: transportSetProgress, start: transportStart };
+
+  const first = new TerminalProgressMultiplexer(terminal);
+  const staleSetProgress = terminal.setProgress;
+  const staleStart = terminal.start;
+  first.setExternal(true);
+
+  const second = new TerminalProgressMultiplexer(terminal);
+  second.setExternal(true);
+  staleSetProgress(false);
+  assert.deepEqual(calls, [true], "stale native calls still honor the current external union");
+
+  transportSetProgress(false); // ProcessTerminal.stop()
+  staleStart();
+  assert.deepEqual(calls, [true, false, "start", true], "stale starts reassert through the current owner");
+
+  first.dispose();
+  second.dispose();
+  assert.equal(terminal.setProgress, transportSetProgress);
+  assert.equal(terminal.start, transportStart);
+});
+
+test("terminal restart reasserts progress only after the transport starts", () => {
+  const calls: Array<boolean | "start"> = [];
+  const transportSetProgress = (active: boolean) => calls.push(active);
+  const transportStart = () => calls.push("start");
+  const terminal = { setProgress: transportSetProgress, start: transportStart };
+  const mux = new TerminalProgressMultiplexer(terminal);
+
+  mux.setExternal(true);
+  transportSetProgress(false); // ProcessTerminal.stop()
+  assert.deepEqual(calls, [true, false]);
+
+  terminal.start();
+  assert.deepEqual(calls, [true, false, "start", true]);
+
+  mux.setExternal(false);
+  mux.dispose();
+  assert.equal(terminal.setProgress, transportSetProgress);
+  assert.equal(terminal.start, transportStart);
 });
