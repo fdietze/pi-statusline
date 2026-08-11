@@ -32,8 +32,8 @@ test("defaults: segmentOrder matches SEGMENT_ORDER", () => {
   assert.deepEqual(DEFAULT_STATUSLINE_SETTINGS.layout.segmentOrder, SEGMENT_ORDER);
 });
 
-test("defaults: MCP is the only right-aligned extension status", () => {
-  assert.deepEqual(DEFAULT_STATUSLINE_SETTINGS.layout.rightAlignedExtensionStatuses, ["mcp"]);
+test("defaults: Ponytail precedes MCP in the right-aligned extension cluster", () => {
+  assert.deepEqual(DEFAULT_STATUSLINE_SETTINGS.layout.rightAlignedExtensionStatuses, ["ponytail", "mcp"]);
 });
 
 test("defaults: narrowPriority drops low-priority segments first, retains context", () => {

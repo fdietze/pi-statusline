@@ -22,6 +22,11 @@ function normalizeExtensionStatus(status: string): string {
   return status.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
 }
 
+/** Ponytail publishes a styled idle/busy circle; the footer intentionally omits that prefix. */
+function stripPonytailActivityIndicator(status: string): string {
+  return status.replace(/^(?:\x1b\[[0-9;]*m)*(?:○|●)(?:\x1b\[[0-9;]*m)* /, "");
+}
+
 /**
  * Single source of truth for the statusline's main line. Both the live footer
  * (extensions/statusline.ts) and the settings preview (settings/resolve.ts) render
@@ -324,7 +329,10 @@ export function renderMainLine(
   };
 
   const normalizedExtensionStatuses = (snap.extensionStatuses ?? [])
-    .map(({ key, value }) => ({ key, value: normalizeExtensionStatus(value) }))
+    .map(({ key, value }) => {
+      const normalized = normalizeExtensionStatus(value);
+      return { key, value: key === "ponytail" ? stripPonytailActivityIndicator(normalized) : normalized };
+    })
     .filter(({ value }) => value.length > 0);
   const rightAlignedStatusKeys = settings.layout.rightAlignedExtensionStatuses ?? [];
   const rightAlignedKeys = new Set(rightAlignedStatusKeys);
@@ -342,7 +350,7 @@ export function renderMainLine(
       else if (activeModel[id] === "off") visibility[id] = false;
     }
   }
-  const rightExtensionStatuses = visibility.extensions
+  const rightExtensionStatusValues = visibility.extensions
     ? rightAlignedStatusKeys
       .map((key) => {
         const value = statusesByKey.get(key);
@@ -350,8 +358,7 @@ export function renderMainLine(
         return withSpace(key, key === "fast" ? paint("warning", value) : value);
       })
       .filter((value): value is string => value !== undefined)
-      .join(" ")
-    : "";
+    : [];
   const orderRank = new Map(settings.layout.segmentOrder.map((id, index) => [id, index] as const));
   const segments = createSegments(visibility, {
     project: () => {
@@ -383,16 +390,20 @@ export function renderMainLine(
   const separator = `${settings.separators.padding}${" ".repeat(settings.separators.spacingBefore)}${settings.separators.main}${" ".repeat(settings.separators.spacingAfter)}`;
   const paintedSeparator = paint("dim", separator);
   const line = composeSegments(segments, inner, paintedSeparator, settings.layout.narrowPriority);
-  const fullLeft = rightExtensionStatuses
+  const fullLeft = rightExtensionStatusValues.length
     ? composeSegments(segments, Number.MAX_SAFE_INTEGER, paintedSeparator, settings.layout.narrowPriority)
     : line;
   const leftWidth = visibleWidth(line);
-  const rightWidth = visibleWidth(rightExtensionStatuses);
   const minimumGap = line ? 1 : 0;
-  const canAlignRight = rightExtensionStatuses.length > 0
-    && visibleWidth(fullLeft) <= inner
-    && leftWidth + minimumGap + rightWidth <= inner;
-  const aligned = canAlignRight
+  // Rightmost configured statuses have the highest narrow-width priority. Try the complete
+  // cluster first, then drop values from its left until the remaining suffix fits.
+  const rightExtensionStatuses = visibleWidth(fullLeft) <= inner
+    ? rightExtensionStatusValues
+      .map((_, index) => rightExtensionStatusValues.slice(index).join(paintedSeparator))
+      .find((candidate) => leftWidth + minimumGap + visibleWidth(candidate) <= inner) ?? ""
+    : "";
+  const rightWidth = visibleWidth(rightExtensionStatuses);
+  const aligned = rightExtensionStatuses
     ? `${line}${" ".repeat(inner - leftWidth - rightWidth)}${rightExtensionStatuses}`
     : line;
   const trailing = Math.min(settings.separators.trailingSpacing, Math.max(0, width));

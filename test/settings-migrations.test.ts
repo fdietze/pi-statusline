@@ -76,7 +76,7 @@ test("migration: legacy footerEnabled+segments+extras+providerTracking maps to n
     pending: true,
   });
   assert.deepEqual(migrated.layout?.segmentOrder, ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
-  assert.deepEqual(migrated.layout?.rightAlignedExtensionStatuses, ["mcp"]);
+  assert.deepEqual(migrated.layout?.rightAlignedExtensionStatuses, ["ponytail", "mcp"]);
 
   // Segments
   assert.ok(migrated.segments);

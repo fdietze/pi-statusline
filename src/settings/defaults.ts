@@ -127,7 +127,7 @@ const DEFAULT_LAYOUT = {
   maxWidth: 0,
   segmentOrder: [...SEGMENT_ORDER] as SegmentId[],
   narrowPriority: ["time", "throughput", "project", "effort", "model", "session", "extensions"] as SegmentId[],
-  rightAlignedExtensionStatuses: ["mcp"],
+  rightAlignedExtensionStatuses: ["ponytail", "mcp"],
 };
 
 /** Default providers group. */
@@ -155,7 +155,7 @@ const DEFAULT_SEGMENTS: Record<SegmentId, boolean> = {
  * - enabled: true (footer on by default)
  * - segmentOrder: [project, model, effort, extensions, context, session, throughput, time]
  * - narrowPriority: [time, throughput, project, effort, model, session, extensions] (context preserved last)
- * - rightAlignedExtensionStatuses: [mcp] (only when spare width is available)
+ * - rightAlignedExtensionStatuses: [ponytail, mcp] (rightmost values survive narrow widths)
  * - bars: rounded width 12, fill '█', empty '░', rounded caps, showPercent true
  * - providerRows: 'newline' (one provider per line)
  * - thresholds: 80/95 warning/critical
