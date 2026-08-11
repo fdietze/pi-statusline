@@ -91,10 +91,10 @@ const GIT_ROLES: Record<GitTokenKind, "accent" | "success" | "warning" | "error"
 };
 
 const ICON_PRESETS: Record<StatuslineSettings["icons"]["style"], Record<string, string>> = {
-  emoji: { project: "📁", model: "🤖", thinking: "🧠", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌", fast: "󱐋" },
+  emoji: { project: "📁", model: "🤖", thinking: "🧠", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌", fast: "⚡" },
   unicode: { project: "◆", model: "◇", thinking: "◌", context: "▣", throughput: "↕", time: "◷" },
   ascii: { project: "P", model: "M", thinking: "T", context: "C", throughput: "R", time: "@" },
-  nerdfont: { project: "󰉋", model: "󰧑", thinking: "󰔟", context: "󰍛", throughput: "󰓅", time: "󰥔", fast: "󱐋" },
+  nerdfont: { project: "󰉋", model: "󰧑", thinking: "󰔟", context: "󰍛", throughput: "󰓅", time: "󰥔", fast: "⚡" },
   minimal: { project: "·", model: "·", thinking: "·", context: "·", throughput: "·", time: "·" },
   none: {},
   custom: {},

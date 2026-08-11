@@ -154,10 +154,10 @@ test("configured extension status keys align right without moving other statuses
     ],
   } as never;
 
-  const decoratedFast = "󱐋 fast";
+  const decoratedFast = "⚡ fast";
   const decoratedMcp = `🔌 ${styledMcp}`;
   const wide = renderMainLine(settings, snapshot, 26);
-  assert.equal(wide, `${decoratedFast}${" ".repeat(10)}${decoratedMcp}`);
+  assert.equal(wide, `${decoratedFast}${" ".repeat(9)}${decoratedMcp}`);
   assert.equal(visibleWidth(wide), 26);
   assert.equal(renderMainLine(settings, snapshot, 10), decoratedFast, "the right status drops before left content");
   assert.equal(renderMainLine(settings, {
