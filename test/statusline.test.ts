@@ -363,8 +363,9 @@ test("reads generic extension statuses from footer data on every render", async 
   const populated = footer!.render(200)[0]!;
   assert.ok(populated.indexOf("FAST") < populated.indexOf("REVIEW"), populated);
   assert.ok(populated.includes(styled), populated);
-  assert.ok(populated.endsWith("MCP 3/3"), populated);
-  assert.equal(populated.slice(0, -"MCP 3/3".length).includes("MCP"), false, populated);
+  const content = populated.trimEnd();
+  assert.ok(content.endsWith("MCP 3/3"), populated);
+  assert.equal(content.slice(0, -"MCP 3/3".length).includes("MCP"), false, populated);
 
   statuses.clear();
   assert.equal(footer!.render(200)[0]!.includes("FAST"), false);
@@ -775,6 +776,7 @@ test("renders a fresh active provider beneath the session line without duplicate
     assert.equal(lines[0]!.includes("5h"), false, `active session line duplicated quota: ${lines[0]}`);
     assert.ok(lines[1]!.includes("anthropic 5h"), `missing provider row: ${lines[1]}`);
     assert.ok(lines[1]!.includes("wk"), `provider windows were not preserved: ${lines[1]}`);
+    assert.ok(lines.every((line) => line.startsWith(" ") && line.endsWith(" ")), "every footer row has outer padding");
     assert.equal(footer!.render(1).length, 2, "narrow widths must retain the provider row");
   } finally {
     footer?.dispose?.();

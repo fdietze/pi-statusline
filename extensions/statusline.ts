@@ -355,6 +355,8 @@ export default function statusline(
         },
         invalidate() {},
         render(width: number): string[] {
+          const edge = width >= 2 ? " " : "";
+          const contentWidth = width - edge.length * 2;
           const provider = ctx.model?.provider;
           const subscription = ctx.model !== undefined
             && (ctx.model.provider === "openai-codex" || ctx.modelRegistry.isUsingOAuth(ctx.model));
@@ -407,9 +409,10 @@ export default function statusline(
             sessionWindows: limits,
             activeProviderHasRow,
             sessionPlaceholder,
-          }, width, theme);
+          }, contentWidth, theme);
           const providerRowLines = renderProviderRows(settings, sources, theme, Date.now());
-          return [line, ...providerRowLines.map((rowLine) => truncateToWidth(rowLine, width, ""))];
+          return [line, ...providerRowLines.map((rowLine) => truncateToWidth(rowLine, contentWidth, ""))]
+            .map((rowLine) => `${edge}${rowLine}${edge}`);
         },
       };
     });
