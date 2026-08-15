@@ -63,6 +63,26 @@ test("renderProviderRows: honors per-window showBar / showReset / label", () => 
   assert.equal(line!.includes("%"), false, `showBar off hides the bar (and its percent)`);
 });
 
+test("renderProviderRows: shows explicit over, under, and measured on-pace text", () => {
+  const now = 1_000_000;
+  const durationMs = 100_000;
+  const window = (label: string, used: number): RateLimitWindow => ({
+    label,
+    used,
+    durationMs,
+    resetAt: now + durationMs / 2,
+  });
+  const [line] = renderProviderRows(DEFAULT_STATUSLINE_SETTINGS, [{
+    provider: "openai-codex",
+    windows: [window("over", 0.56), window("under", 0.44), window("even", 0.506)],
+  }], undefined, now);
+
+  assert.ok(line!.includes("≈6pp over"), line);
+  assert.ok(line!.includes("≈6pp under"), line);
+  assert.ok(line!.includes("≈0.6pp on pace"), line);
+  assert.equal(line!.includes("pp/d"), false, line);
+});
+
 test("renderProviderRows: placeholder renders when a provider has no windows yet", () => {
   const rows = renderProviderRows(DEFAULT_STATUSLINE_SETTINGS, [{ provider: "anthropic", windows: [], placeholder: "5h — wk —" }], undefined, 0);
   assert.deepEqual(rows, ["anthropic 5h — wk —"]);

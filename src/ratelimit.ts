@@ -4,9 +4,33 @@ export interface RateLimitWindow {
   label: string;
   used: number;
   resetAt?: number;
+  durationMs?: number;
 }
 
 export type RateLimits = RateLimitWindow[];
+
+export interface RateLimitPace {
+  relation: "over" | "under" | "on-pace";
+  percentagePoints: number;
+}
+
+/** Compare consumed quota with the elapsed share of a reported fixed window. */
+export function deriveRateLimitPace(window: RateLimitWindow, now: number): RateLimitPace | undefined {
+  const { durationMs, resetAt } = window;
+  if (durationMs === undefined || resetAt === undefined
+    || !Number.isFinite(window.used) || window.used < 0 || window.used > 1
+    || !Number.isFinite(durationMs) || durationMs <= 0
+    || !Number.isFinite(resetAt) || !Number.isFinite(now)) return undefined;
+  const remainingMs = resetAt - now;
+  if (remainingMs <= 0 || remainingMs > durationMs) return undefined;
+  const elapsed = 1 - remainingMs / durationMs;
+  const delta = (window.used - elapsed) * 100;
+  const percentagePoints = Math.abs(delta);
+  return {
+    relation: percentagePoints <= 1 ? "on-pace" : delta > 0 ? "over" : "under",
+    percentagePoints,
+  };
+}
 
 const ANTHROPIC_WINDOWS = [
   ["five-hour", "5h", "anthropic-ratelimit-unified-5h-utilization"],
@@ -59,12 +83,14 @@ export function parseCodexUsage(payload: unknown): RateLimits {
     const window = value as Record<string, unknown>;
     const percent = typeof window.used_percent === "number" ? window.used_percent : undefined;
     const seconds = typeof window.limit_window_seconds === "number" ? window.limit_window_seconds : undefined;
-    if (percent === undefined || percent < 0 || percent > 100 || seconds === undefined || seconds <= 0) return [];
+    if (percent === undefined || !Number.isFinite(percent) || percent < 0 || percent > 100
+      || seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) return [];
     const resetAt = reset(typeof window.reset_at === "number" ? window.reset_at : undefined);
     return [{
       key: name === "primary_window" ? "primary" : "secondary",
       label: durationLabel(seconds / 60),
       used: percent / 100,
+      durationMs: seconds * 1_000,
       ...(resetAt === undefined ? {} : { resetAt }),
     }];
   });
@@ -109,15 +135,17 @@ export function parseStoredRateLimits(value: unknown): RateLimits {
   if (!Array.isArray(value)) return [];
   return value.flatMap((window) => {
     if (!window || typeof window !== "object") return [];
-    const { key, label, used, resetAt } = window as Record<string, unknown>;
+    const { key, label, used, resetAt, durationMs } = window as Record<string, unknown>;
     if (key !== undefined && (typeof key !== "string" || !key.trim())) return [];
     if (typeof label !== "string" || !label || typeof used !== "number" || !Number.isFinite(used) || used < 0 || used > 1) return [];
     const parsedResetAt = reset(typeof resetAt === "number" ? resetAt : undefined);
+    const parsedDurationMs = typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs > 0 ? durationMs : undefined;
     return [{
       ...(typeof key === "string" ? { key } : {}),
       label,
       used,
       ...(parsedResetAt === undefined ? {} : { resetAt: parsedResetAt }),
+      ...(parsedDurationMs === undefined ? {} : { durationMs: parsedDurationMs }),
     }];
   });
 }
@@ -144,6 +172,7 @@ export function parseRateLimits(headers: Record<string, string>): RateLimits {
       label: minutes === undefined ? name : durationLabel(minutes),
       used: percent / 100,
       ...(resetAt === undefined ? {} : { resetAt }),
+      ...(minutes === undefined || minutes <= 0 ? {} : { durationMs: minutes * 60_000 }),
     });
   }
 

@@ -12,7 +12,7 @@ import {
 import { formatRate, formatResetCountdown, formatTime, formatWindow } from "./format.ts";
 import { gitBranchSymbol, gitStatusTokens, type GitStatusState, type GitTokenKind } from "./git.ts";
 import { estimateTokens, type ThroughputLevel } from "./throughput.ts";
-import type { RateLimitWindow } from "./ratelimit.ts";
+import { deriveRateLimitPace, type RateLimitWindow } from "./ratelimit.ts";
 import type { ResetFormat, StatuslineSettings } from "./settings/schema.ts";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
@@ -202,7 +202,14 @@ function renderSessionBar(settings: StatuslineSettings, provider: string | undef
       ? renderBar(used, display.width, barStyleFactory(settings, used, theme, DEFAULT_STOPS), DEFAULT_STOPS, display.showPercent)
       : blockBar(used, settings, theme, display.width, display.showPercent);
   const reset = display.showReset && window.resetAt !== undefined ? paint("dim", ` ↻ ${formatReset(window.resetAt, display.resetFormat, now)}`) : "";
-  return `${paint("muted", `${display.label} `)}${bar}${reset}`;
+  const pace = deriveRateLimitPace(window, now);
+  const paceText = pace
+    ? ` ${paint(
+      pace.relation === "over" ? "warning" : pace.relation === "under" ? "success" : "muted",
+      `≈${pace.relation === "on-pace" ? pace.percentagePoints.toFixed(1) : Math.round(pace.percentagePoints)}pp ${pace.relation === "on-pace" ? "on pace" : pace.relation}`,
+    )}`
+    : "";
+  return `${paint("muted", `${display.label} `)}${bar}${reset}${paceText}`;
 }
 
 /** One provider's data for a tracking row (caller pre-filters order/enabled/health). */

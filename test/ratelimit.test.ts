@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage } from "../src/ratelimit.ts";
+import { deriveRateLimitPace, parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage } from "../src/ratelimit.ts";
 
 const fixture = {
   "anthropic-ratelimit-unified-5h-utilization": "0.23",
@@ -34,13 +34,13 @@ test("parses only the Codex windows actually reported", () => {
     "X-Codex-Secondary-Used-Percent": "41",
     "X-Codex-Secondary-Window-Minutes": "10080",
   }), [
-    { key: "primary", label: "1h", used: 0.23, resetAt: 1_784_246_400_000 },
-    { key: "secondary", label: "wk", used: 0.41 },
+    { key: "primary", label: "1h", used: 0.23, resetAt: 1_784_246_400_000, durationMs: 3_600_000 },
+    { key: "secondary", label: "wk", used: 0.41, durationMs: 604_800_000 },
   ]);
   assert.deepEqual(parseRateLimits({
     "x-codex-primary-used-percent": "41",
     "x-codex-primary-window-minutes": "43200",
-  }), [{ key: "primary", label: "30d", used: 0.41 }]);
+  }), [{ key: "primary", label: "30d", used: 0.41, durationMs: 2_592_000_000 }]);
 });
 
 test("parses Codex account usage by the windows returned by the account", () => {
@@ -53,8 +53,32 @@ test("parses Codex account usage by the windows returned by the account", () => 
         reset_at: 1_784_246_400,
       },
     },
-  }), [{ key: "secondary", label: "wk", used: 0.63, resetAt: 1_784_246_400_000 }]);
+  }), [{ key: "secondary", label: "wk", used: 0.63, resetAt: 1_784_246_400_000, durationMs: 604_800_000 }]);
   assert.deepEqual(parseCodexUsage({ rate_limit: null }), []);
+});
+
+test("derives approximate fixed-window pace and hides unusable boundaries", () => {
+  const durationMs = 100_000;
+  const now = 1_000_000;
+  const window = (used: number, remainingFraction = 0.5) => ({
+    label: "test",
+    used,
+    durationMs,
+    resetAt: now + durationMs * remainingFraction,
+  });
+
+  const over = deriveRateLimitPace(window(0.56), now);
+  const under = deriveRateLimitPace(window(0.44), now);
+  const onPace = deriveRateLimitPace(window(0.506), now);
+  assert.equal(over?.relation, "over");
+  assert.equal(under?.relation, "under");
+  assert.equal(onPace?.relation, "on-pace");
+  assert.ok(Math.abs(over!.percentagePoints - 6) < 1e-9);
+  assert.ok(Math.abs(under!.percentagePoints - 6) < 1e-9);
+  assert.ok(Math.abs(onPace!.percentagePoints - 0.6) < 1e-9);
+  assert.equal(deriveRateLimitPace(window(0, 1), now)?.relation, "on-pace", "a fresh window still has a measurable pace");
+  assert.equal(deriveRateLimitPace({ ...window(0.5), resetAt: now }, now), undefined, "expired window");
+  assert.equal(deriveRateLimitPace({ label: "legacy", used: 0.5, resetAt: now + 1 }, now), undefined, "legacy cache has no duration");
 });
 
 test("parses Z.AI TOKENS_LIMIT windows, ordering the untouched/sooner-resetting one as 5h", () => {
@@ -98,12 +122,12 @@ test("hides Z.AI usage on any unexpected shape rather than guessing", () => {
 
 test("restores only valid saved windows", () => {
   assert.deepEqual(parseStoredRateLimits([
-    { key: "saved-five-hour", label: "5h", used: 0.23, resetAt: 1_784_246_400 },
-    { key: "saved-week", label: "wk", used: 0.41 },
+    { key: "saved-five-hour", label: "5h", used: 0.23, resetAt: 1_784_246_400, durationMs: 18_000_000 },
+    { key: "saved-week", label: "wk", used: 0.41, durationMs: -1 },
     { key: "bad", label: "bad", used: 2 },
     null,
   ]), [
-    { key: "saved-five-hour", label: "5h", used: 0.23, resetAt: 1_784_246_400_000 },
+    { key: "saved-five-hour", label: "5h", used: 0.23, resetAt: 1_784_246_400_000, durationMs: 18_000_000 },
     { key: "saved-week", label: "wk", used: 0.41 },
   ]);
   assert.deepEqual(parseStoredRateLimits({}), []);

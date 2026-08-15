@@ -7,13 +7,13 @@ A configurable, single-line footer for [pi](https://github.com/earendil-works/pi
 📁 pi-statusline  main ↑2 > 🤖 claude-sonnet-5 > 🧠 high > FAST > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h > ⏳ 8m02s
 📁 pi-statusline  main ✓ > 🤖 gpt-5 > 🧠 high > 🪟  12.0%/400K > 🧾 ↑128K ↓34K $0.512 > ⏳ 3m20s
 anthropic 5h ╺━━━━━━━━━━╸ 100% ↻1h44m >wk ╺──────────╴ 12% ↻6d5h
-openai-codex wk ╺━━━━━━━━──╴ 79% ↻4d17h
+openai-codex wk ╺━━━━──────╴ 38% ↻4d14h ≈3pp over
 zai 5h ╶──────────╴ 0% >wk ╺──────────╴ 5% ↻2d19h
 ```
 
 The first line is a local model (live token rates), the second an Anthropic subscription (quota bars, no throughput at idle), the third an API-key provider (running token totals and session cost). See [Throughput and time](#throughput-and-time). The last three lines are provider-tracking rows: every provider you select in `/statusline` (not just your active model) gets its own row with its own live usage, so you can compare available capacity across providers without switching. See [Provider tracking](#provider-tracking).
 
-Usage is a thin continuous line with rounded half-line ends and a dark-gray track. Its bright truecolor fill gives a restrained glow, moving smoothly from neon green through vivid orange to blood red as usage rises. Each provider-reported window includes a compact live reset countdown.
+Usage is a thin continuous line with rounded half-line ends and a dark-gray track. Its bright truecolor fill gives a restrained glow, moving smoothly from neon green through vivid orange to blood red as usage rises. Each provider-reported window includes a compact live reset countdown. When Codex also reports the window duration, the footer compares consumed usage with the elapsed share of the window and appends an approximate `over`, `under`, or measured `on pace` value such as `≈0.6pp on pace`; it does not show a per-day allowance.
 
 ## Install
 
@@ -95,6 +95,8 @@ Fresh selected providers render in that saved order beneath the active-session l
 | Time | ✓ | ✓ | ✓ | ✓ |
 
 Anthropic OAuth fetches its current `5h` and `wk` limits when the session starts, then updates them from response headers, and again in the background for provider tracking. Codex fetches its current account limits and shows only the windows returned by the account, labeled by duration. Reset countdowns appear for every Claude or Codex window that reports a reset time; absent data is omitted rather than rendered as `—`.
+
+Quota bars and percentages show consumed usage. Codex pace is a separate heuristic: the footer treats `reset_at - limit_window_seconds` as the window start, compares actual consumed percentage with elapsed-window percentage, and marks the result approximate because the service does not explicitly guarantee fixed-window semantics. Pace stays hidden when duration/reset data is absent or invalid or after expiry.
 
 Any other provider you've authenticated (OpenRouter, custom endpoints, …) still appears in the Providers list, but has no adapter yet—pi-statusline only ever uses pi's own stored credentials for that provider. Concretely: OpenRouter's only usage endpoint (`/api/v1/credits`) explicitly rejects the regular inference key pi stores and requires a separate management key pi doesn't manage, so it shows that sanitized reason instead of a row.
 
