@@ -5,6 +5,8 @@ export interface RateLimitWindow {
   used: number;
   resetAt?: number;
   durationMs?: number;
+  /** Approximate consumed fraction since the local operational-day boundary. */
+  dailyUsed?: number;
 }
 
 export type RateLimits = RateLimitWindow[];

@@ -79,6 +79,10 @@ export class ProviderRefreshCoordinator {
     if (usage.limits.length && Number.isFinite(updatedAt) && updatedAt <= Date.now()) this.health.set(provider, { state: "fresh", usage, updatedAt });
   }
 
+  invalidate(provider: string): void {
+    if (this.health.delete(provider)) this.onUpdate();
+  }
+
   async refresh(provider: string): Promise<void> {
     if (this.running.has(provider)) return;
     this.running.add(provider);

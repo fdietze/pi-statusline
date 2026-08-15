@@ -209,7 +209,11 @@ function renderSessionBar(settings: StatuslineSettings, provider: string | undef
       `≈${pace.relation === "on-pace" ? pace.percentagePoints.toFixed(1) : Math.round(pace.percentagePoints)}pp ${pace.relation === "on-pace" ? "on pace" : pace.relation}`,
     )}`
     : "";
-  return `${paint("muted", `${display.label} `)}${bar}${reset}${paceText}`;
+  const dailyPercentagePoints = window.dailyUsed === undefined ? undefined : window.dailyUsed * 100;
+  const dailyText = dailyPercentagePoints !== undefined && Number.isFinite(dailyPercentagePoints) && dailyPercentagePoints >= 0
+    ? ` ${paint("muted", `≈${dailyPercentagePoints < 1 ? dailyPercentagePoints.toFixed(1) : Math.round(dailyPercentagePoints)}pp today`)}`
+    : "";
+  return `${paint("muted", `${display.label} `)}${bar}${reset}${paceText}${dailyText}`;
 }
 
 /** One provider's data for a tracking row (caller pre-filters order/enabled/health). */

@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { parseKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { dirname, join } from "node:path";
 import {
   AGENT_ACTIVITY_REQUEST_EVENT,
   AGENT_ACTIVITY_UPDATE_EVENT,
@@ -8,6 +9,7 @@ import {
   TerminalProgressMultiplexer,
   type ProgressTerminal,
 } from "../src/agent-activity.ts";
+import { codexAccountScope, CodexDailyUsage, CODEX_QUOTA_HISTORY_DIR } from "../src/codex-daily.ts";
 import { billingMode, isLocalEndpoint } from "../src/derive.ts";
 import { formatResetCountdown, formatTime } from "../src/format.ts";
 import { parseGitStatus, type GitStatusState } from "../src/git.ts";
@@ -39,6 +41,11 @@ export default function statusline(
   pi: ExtensionAPI,
   providerUsageCache = new ProviderUsageCache(undefined, undefined, undefined, undefined, { anthropic: ANTHROPIC_REFRESH_MS }),
   settingsPath = DEFAULT_STATUSLINE_CONFIG_PATH,
+  codexDailyUsage = new CodexDailyUsage(
+    settingsPath === DEFAULT_STATUSLINE_CONFIG_PATH
+      ? CODEX_QUOTA_HISTORY_DIR
+      : join(dirname(settingsPath), "quota-history"),
+  ),
 ) {
   let settings: StatuslineSettings = loadRuntimeSettings(settingsPath);
   let meter = new TurnMeter();
@@ -64,6 +71,10 @@ export default function statusline(
   // True while the settings overlay is open; keeps commitSettings from flashing the live footer.
   let settingsOverlayOpen = false;
   let providerRefresh: ProviderRefreshCoordinator | undefined;
+  let codexCacheScope: string | undefined;
+  // Pi serializes provider requests within a session, so one in-flight scope is sufficient.
+  let codexProviderRequestScope: string | undefined;
+  let codexAccountGeneration = 0;
   const isCurrentSession = (epoch: number) => sessionActive && epoch === sessionEpoch;
   const ANTHROPIC_RETRY_DELAYS_MS = [1_500, 3_000];
 
@@ -197,7 +208,8 @@ export default function statusline(
   const codexAccountId = (token: string): string | undefined => {
     try {
       const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
-      return payload?.["https://api.openai.com/auth"]?.chatgpt_account_id;
+      const accountId = payload?.["https://api.openai.com/auth"]?.chatgpt_account_id;
+      return typeof accountId === "string" && accountId.trim() ? accountId : undefined;
     } catch {
       return undefined;
     }
@@ -263,33 +275,86 @@ export default function statusline(
     }
   };
 
-  const fetchCodexUsage = async (ctx: ExtensionContext, model: ReturnType<typeof findAvailableModel>): Promise<RateLimits> => {
-    if (!model?.baseUrl) return [];
+  const codexCredentials = async (ctx: ExtensionContext) => {
     try {
       const access = await ctx.modelRegistry.getApiKeyForProvider("openai-codex");
       const accountId = access ? codexAccountId(access) : undefined;
-      if (!access || !accountId) return [];
+      return access && accountId ? { access, accountId } : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const fetchCodexUsage = async (
+    model: ReturnType<typeof findAvailableModel>,
+    credentials: { access: string; accountId: string },
+  ): Promise<RateLimits> => {
+    if (!model?.baseUrl) return [];
+    try {
       const origin = new URL(model.baseUrl).origin;
       const response = await fetch(`${origin}/backend-api/wham/usage`, {
         headers: {
-          authorization: `Bearer ${access}`,
-          "chatgpt-account-id": accountId,
+          authorization: `Bearer ${credentials.access}`,
+          "chatgpt-account-id": credentials.accountId,
           originator: "pi",
         },
         signal: AbortSignal.timeout(3_000),
       });
-      if (!response.ok) return [];
-      return parseCodexUsage(await response.json());
+      return response.ok ? parseCodexUsage(await response.json()) : [];
     } catch {
       return [];
     }
   };
 
-  const refreshProviderUsage = (provider: string, fetchLimits: () => Promise<RateLimits>) =>
+  const refreshProviderUsage = (provider: string, fetchLimits: () => Promise<RateLimits>, scope?: string) =>
     providerUsageCache.refresh(provider, async () => {
       const next = await fetchLimits();
       return next.length ? { limits: next } : undefined;
-    });
+    }, scope);
+
+  const selectCodexAccount = (credentials: { accountId: string }, activeCodex: boolean) => {
+    const scope = codexAccountScope(credentials.accountId);
+    if (scope !== codexCacheScope) {
+      codexCacheScope = scope;
+      codexAccountGeneration++;
+      providerRefresh?.invalidate("openai-codex");
+      if (activeCodex) {
+        limits = [];
+        syncTick();
+      }
+    }
+    codexDailyUsage.selectAccount(credentials.accountId);
+    return { scope, generation: codexAccountGeneration };
+  };
+
+  const clearCodexAccount = (activeCodex: boolean) => {
+    if (codexCacheScope !== undefined) {
+      codexAccountGeneration++;
+      providerRefresh?.invalidate("openai-codex");
+      if (activeCodex) {
+        limits = [];
+        syncTick();
+      }
+    }
+    codexCacheScope = undefined;
+    codexDailyUsage.clearAccount();
+  };
+
+  const refreshCodexProviderUsage = async (ctx: ExtensionContext, model: ReturnType<typeof findAvailableModel>) => {
+    const credentials = await codexCredentials(ctx);
+    const activeCodex = ctx.model?.provider === "openai-codex";
+    if (!credentials) {
+      clearCodexAccount(activeCodex);
+      return undefined;
+    }
+    const selected = selectCodexAccount(credentials, activeCodex);
+    const usage = await refreshProviderUsage("openai-codex", async () => {
+      const next = await fetchCodexUsage(model, credentials);
+      if (selected.generation !== codexAccountGeneration || selected.scope !== codexCacheScope) return [];
+      return codexDailyUsage.observe(credentials.accountId, next);
+    }, selected.scope);
+    return selected.generation === codexAccountGeneration && selected.scope === codexCacheScope ? usage : undefined;
+  };
 
   // Active-session wrappers: only apply fetched usage to the shared `limits`/tick/persisted entry
   // when the fetched provider is actually the active model, so a background provider-tracking
@@ -308,7 +373,7 @@ export default function statusline(
 
   const refreshCodexLimits = async (ctx: ExtensionContext, epoch = sessionEpoch): Promise<RateLimits> => {
     if (!isCurrentSession(epoch) || ctx.model?.provider !== "openai-codex") return [];
-    const usage = await refreshProviderUsage("openai-codex", () => fetchCodexUsage(ctx, ctx.model));
+    const usage = await refreshCodexProviderUsage(ctx, ctx.model);
     const next = usage?.limits ?? [];
     if (!next.length || !isCurrentSession(epoch) || ctx.model?.provider !== "openai-codex") return [];
     limits = next;
@@ -374,7 +439,10 @@ export default function statusline(
             const record = settings.providers.records[p];
             if (!record?.enabled) return [];
             const health = providerRefresh?.get(p);
-            if (health?.state === "fresh") return [{ provider: p, windows: health.usage.limits }];
+            if (health?.state === "fresh") return [{
+              provider: p,
+              windows: p === "openai-codex" ? codexDailyUsage.decorate(health.usage.limits) : health.usage.limits,
+            }];
             // Before a subscription provider's usage loads, anthropic+OAuth earns a placeholder row.
             if (p === "anthropic") {
               const registry = ctx.modelRegistry as unknown as { getAvailable?: () => Array<{ provider: string }> };
@@ -406,7 +474,7 @@ export default function statusline(
             meter: { ...snapshot, activeMs: snapshot.activeMs + meter.liveActiveMs() },
             lastContextChars,
             totals,
-            sessionWindows: limits,
+            sessionWindows: provider === "openai-codex" ? codexDailyUsage.decorate(limits) : limits,
             activeProviderHasRow,
             sessionPlaceholder,
           }, contentWidth, theme);
@@ -447,7 +515,9 @@ export default function statusline(
       const snapshot = providerRefresh?.get(descriptor.id);
       if (snapshot?.state === "fresh") {
         health[descriptor.id] = { state: "fresh" };
-        windows[descriptor.id] = snapshot.usage.limits;
+        windows[descriptor.id] = descriptor.id === "openai-codex"
+          ? codexDailyUsage.decorate(snapshot.usage.limits)
+          : snapshot.usage.limits;
       } else if (snapshot) {
         health[descriptor.id] = { state: "unknown" };
       }
@@ -604,26 +674,38 @@ export default function statusline(
     turnActive = false;
     backgroundActive = false;
     activitySources.clear();
+    codexAccountGeneration++;
+    codexCacheScope = undefined;
+    codexDailyUsage.clearAccount();
     disposeProgressMultiplexer();
     stopTick();
     stopAnthropicRetry();
     settings = loadRuntimeSettings(settingsPath);
     if (availableProviders(ctx).length) settings = reconcileProviders(settings, ctx.modelRegistry);
+    const providers = availableProviders(ctx);
+    if (providers.includes("openai-codex")) {
+      const credentials = await codexCredentials(ctx);
+      if (!isCurrentSession(epoch)) return;
+      if (credentials) selectCodexAccount(credentials, ctx.model?.provider === "openai-codex");
+    }
     meter = new TurnMeter();
     limits = isAnthropicOAuth(ctx) ? restoreAnthropicLimits(ctx) : [];
     if (!limits.length) {
       const provider = ctx.model?.provider ?? "";
-      limits = (provider === "anthropic" ? providerUsageCache.get(provider) : providerUsageCache.getFresh(provider))?.limits ?? [];
+      limits = (provider === "anthropic"
+        ? providerUsageCache.get(provider)
+        : provider === "openai-codex"
+          ? codexCacheScope ? providerUsageCache.getFresh(provider, undefined, codexCacheScope) : undefined
+          : providerUsageCache.getFresh(provider))?.limits ?? [];
     }
     gitStatus = undefined;
     liveExtensionStatuses = [];
-    const providers = availableProviders(ctx);
     // Saved providers may not be available in this process yet. Keep their last fresh cross-session
     // snapshot visible while a session that can authenticate them refreshes it.
     const trackedProviders = Array.from(new Set([...providers, ...settings.providers.order]));
     const adapters = new Map<string, ProviderAdapter>();
     if (providers.includes("anthropic")) adapters.set("anthropic", { refresh: () => refreshProviderUsage("anthropic", () => fetchAnthropicUsage(ctx, findAvailableModel(ctx, "anthropic"))) });
-    if (providers.includes("openai-codex")) adapters.set("openai-codex", { refresh: () => refreshProviderUsage("openai-codex", () => fetchCodexUsage(ctx, findAvailableModel(ctx, "openai-codex"))) });
+    if (providers.includes("openai-codex")) adapters.set("openai-codex", { refresh: () => refreshCodexProviderUsage(ctx, findAvailableModel(ctx, "openai-codex")) });
     if (providers.includes("zai")) adapters.set("zai", { refresh: () => refreshProviderUsage("zai", () => fetchZaiUsage(ctx, findAvailableModel(ctx, "zai"))) });
     providerRefresh?.stop();
     providerRefresh = new ProviderRefreshCoordinator(adapters, () => {
@@ -636,7 +718,11 @@ export default function statusline(
       requestRender?.();
     });
     for (const provider of trackedProviders) {
-      const cached = provider === "anthropic" ? providerUsageCache.get(provider) : providerUsageCache.getFresh(provider);
+      const cached = provider === "anthropic"
+        ? providerUsageCache.get(provider)
+        : provider === "openai-codex"
+          ? codexCacheScope ? providerUsageCache.getFresh(provider, undefined, codexCacheScope) : undefined
+          : providerUsageCache.getFresh(provider);
       if (cached?.limits.length) providerRefresh.prime(provider, cached, provider === "anthropic" ? Date.now() : cached.updatedAt);
     }
     if (settings.enabled) installFooter(ctx, epoch);
@@ -707,7 +793,28 @@ export default function statusline(
     syncAggregateActivity();
   });
 
+  pi.on("before_provider_headers", (event, ctx) => {
+    if (ctx.model?.provider !== "openai-codex") {
+      codexProviderRequestScope = undefined;
+      return;
+    }
+    const authorization = Object.entries(event.headers)
+      .find(([key]) => key.toLowerCase() === "authorization")?.[1];
+    const accountId = typeof authorization === "string"
+      ? codexAccountId(authorization.replace(/^Bearer\s+/i, ""))
+      : undefined;
+    if (!accountId) {
+      codexProviderRequestScope = undefined;
+      clearCodexAccount(true);
+      return;
+    }
+    codexProviderRequestScope = selectCodexAccount({ accountId }, true).scope;
+  });
+
   pi.on("after_provider_response", (event, ctx) => {
+    const codexHeaders = Object.keys(event.headers).some((key) => key.toLowerCase().startsWith("x-codex-"));
+    if (codexHeaders && (ctx.model?.provider !== "openai-codex"
+      || !codexProviderRequestScope || codexProviderRequestScope !== codexCacheScope)) return;
     const next = parseRateLimits(event.headers);
     if (!next.length) return;
     limits = next;

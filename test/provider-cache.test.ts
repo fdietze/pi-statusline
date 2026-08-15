@@ -23,6 +23,22 @@ test("shares one fresh provider usage result between sessions", async () => {
   }
 });
 
+test("isolates provider usage by optional account scope", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pi-statusline-cache-"));
+  const cache = new ProviderUsageCache(dir, 10_000);
+  const accountA = { limits: [{ label: "wk", used: 0.2 }] };
+  const accountB = { limits: [{ label: "wk", used: 0.7 }] };
+  try {
+    await cache.refresh("openai-codex", async () => accountA, "account-a");
+    await cache.refresh("openai-codex", async () => accountB, "account-b");
+    assert.deepEqual(cache.get("openai-codex", "account-a")?.limits, accountA.limits);
+    assert.deepEqual(cache.get("openai-codex", "account-b")?.limits, accountB.limits);
+    assert.equal(cache.get("openai-codex"), undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("allows only one simultaneous refresh per provider", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-statusline-cache-"));
   let resolve!: (usage: Usage) => void;

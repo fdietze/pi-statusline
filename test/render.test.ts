@@ -83,6 +83,16 @@ test("renderProviderRows: shows explicit over, under, and measured on-pace text"
   assert.equal(line!.includes("pp/d"), false, line);
 });
 
+test("renderProviderRows: shows approximate operational-day usage without a start timestamp", () => {
+  const [line] = renderProviderRows(DEFAULT_STATUSLINE_SETTINGS, [{
+    provider: "openai-codex",
+    windows: [{ ...weekly, dailyUsed: 0.006 }],
+  }], undefined, 0);
+
+  assert.ok(line!.includes("≈0.6pp today"), line);
+  assert.equal(line!.includes("since"), false, line);
+});
+
 test("renderProviderRows: placeholder renders when a provider has no windows yet", () => {
   const rows = renderProviderRows(DEFAULT_STATUSLINE_SETTINGS, [{ provider: "anthropic", windows: [], placeholder: "5h — wk —" }], undefined, 0);
   assert.deepEqual(rows, ["anthropic 5h — wk —"]);

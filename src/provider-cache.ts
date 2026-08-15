@@ -45,10 +45,10 @@ export class ProviderUsageCache {
     return this.refreshMsOverrides[provider] ?? this.refreshMs;
   }
 
-  get(provider: string): CachedUsage | undefined {
+  get(provider: string, scope?: string): CachedUsage | undefined {
     let value: Record<string, unknown>;
     try {
-      value = JSON.parse(readFileSync(this.file(provider), "utf8")) as Record<string, unknown>;
+      value = JSON.parse(readFileSync(this.file(provider, scope), "utf8")) as Record<string, unknown>;
     } catch {
       return undefined;
     }
@@ -65,14 +65,14 @@ export class ProviderUsageCache {
       : { limits: [], updatedAt: 0, ...extras };
   }
 
-  getFresh(provider: string, maxAge = PROVIDER_MAX_AGE_MS): CachedUsage | undefined {
-    const cached = this.get(provider);
+  getFresh(provider: string, maxAge = PROVIDER_MAX_AGE_MS, scope?: string): CachedUsage | undefined {
+    const cached = this.get(provider, scope);
     return cached && cached.limits.length && this.now() - cached.updatedAt <= maxAge ? cached : undefined;
   }
 
-  async refresh(provider: string, fetchUsage: () => Promise<ProviderUsage | undefined>): Promise<ProviderUsage | undefined> {
+  async refresh(provider: string, fetchUsage: () => Promise<ProviderUsage | undefined>, scope?: string): Promise<ProviderUsage | undefined> {
     const refreshMs = this.refreshMsFor(provider);
-    const before = this.get(provider);
+    const before = this.get(provider, scope);
     // Honor an active 429 backoff: don't hit the endpoint again until it expires.
     if (before?.retryAt !== undefined && this.now() < before.retryAt) {
       return before.limits.length ? { limits: before.limits } : undefined;
@@ -83,12 +83,12 @@ export class ProviderUsageCache {
     mkdirSync(this.dir, { recursive: true });
     let release: () => void;
     try {
-      release = lockSync(this.file(provider), { realpath: false, stale: Math.max(this.lockMs, 5_000), retries: 0 });
+      release = lockSync(this.file(provider, scope), { realpath: false, stale: Math.max(this.lockMs, 5_000), retries: 0 });
     } catch {
       return before?.limits.length ? { limits: before.limits } : undefined;
     }
     try {
-      const current = this.get(provider);
+      const current = this.get(provider, scope);
       if (current?.retryAt !== undefined && this.now() < current.retryAt) {
         return current.limits.length ? { limits: current.limits } : undefined;
       }
@@ -99,14 +99,14 @@ export class ProviderUsageCache {
         const usage = await fetchUsage();
         if (usage?.limits.length) {
           // Success: store fresh usage and clear any backoff.
-          this.save(provider, { limits: usage.limits, updatedAt: this.now() });
+          this.save(provider, { limits: usage.limits, updatedAt: this.now() }, scope);
           return usage;
         }
         return current?.limits.length ? { limits: current.limits } : undefined;
       } catch (error) {
         if (error instanceof RateLimitedError) {
           // 429: persist a growing backoff so every session and every caller backs off.
-          this.applyBackoff(provider, current);
+          this.applyBackoff(provider, current, scope);
         } else if (!current?.limits.length) {
           throw error;
         }
@@ -117,7 +117,7 @@ export class ProviderUsageCache {
     }
   }
 
-  private applyBackoff(provider: string, current: CachedUsage | undefined): void {
+  private applyBackoff(provider: string, current: CachedUsage | undefined, scope?: string): void {
     const step = current?.backoffStep ?? 0;
     const delay = BACKOFF_STEPS_MS[Math.min(step, BACKOFF_STEPS_MS.length - 1)];
     const hasUsage = current?.limits.length;
@@ -126,15 +126,16 @@ export class ProviderUsageCache {
       updatedAt: hasUsage ? current!.updatedAt : 0,
       retryAt: this.now() + delay,
       backoffStep: step + 1,
-    });
+    }, scope);
   }
 
-  private file(provider: string) {
-    return join(this.dir, `${Buffer.from(provider).toString("base64url")}.json`);
+  private file(provider: string, scope?: string) {
+    const key = scope ? `${provider}\0${scope}` : provider;
+    return join(this.dir, `${Buffer.from(key).toString("base64url")}.json`);
   }
 
-  private save(provider: string, record: CachedUsage): void {
-    const file = this.file(provider);
+  private save(provider: string, record: CachedUsage, scope?: string): void {
+    const file = this.file(provider, scope);
     const temporary = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
     try {
       writeFileSync(temporary, `${JSON.stringify(record)}\n`, "utf8");

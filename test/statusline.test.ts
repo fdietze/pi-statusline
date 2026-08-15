@@ -432,6 +432,8 @@ test("renders emoji segments with themed semantic colors", async () => {
   handlers.get("turn_start")!({ timestamp: now - 1_000 });
   await handlers.get("turn_end")!({ message: { role: "assistant", usage: { input: 850, output: 74 } } }, ctx);
   const resetAt = String(Math.floor((Date.now() + 3_600_000) / 1_000));
+  const accountToken = `h.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_theme" } })).toString("base64url")}.s`;
+  handlers.get("before_provider_headers")!({ headers: { authorization: `Bearer ${accountToken}` } }, ctx);
   handlers.get("after_provider_response")!({ headers: {
     "x-codex-primary-used-percent": "60",
     "x-codex-primary-window-minutes": "60",
@@ -1092,10 +1094,162 @@ test("tracks every selected provider's usage simultaneously, not just the active
     await new Promise<void>((resolve) => setImmediate(resolve));
     const lines = footer!.render(500);
     assert.ok(lines.some((line) => line.includes("anthropic") && line.includes("5h")), `expected an anthropic row despite Codex being active, got: ${JSON.stringify(lines)}`);
-    assert.ok(lines.some((line) => line.includes("openai-codex")), `expected an openai-codex row, got: ${JSON.stringify(lines)}`);
+    assert.ok(lines.some((line) => line.includes("openai-codex") && line.includes("≈0.0pp today")), `expected tracked daily Codex usage, got: ${JSON.stringify(lines)}`);
+    assert.equal(existsSync(join(cacheRoot, "quota-history", "openai-codex.json")), true);
   } finally {
     footer?.dispose?.();
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("ignores malformed Codex account claims without breaking session startup", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  const malformedToken = `h.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: 42 } })).toString("base64url")}.s`;
+  const pi = {
+    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+    registerCommand: () => {},
+    getThinkingLevel: () => "off",
+    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+  } as never;
+  const ctx = {
+    cwd: process.cwd(),
+    model: { id: "gpt-5-codex", provider: "openai-codex", baseUrl: "https://chatgpt.com/backend-api/codex" },
+    modelRegistry: {
+      isUsingOAuth: () => false,
+      getApiKeyForProvider: async () => malformedToken,
+      getAvailable: () => [{ provider: "openai-codex", id: "gpt-5-codex", baseUrl: "https://chatgpt.com/backend-api/codex" }],
+    },
+    getContextUsage: () => undefined,
+    hasPendingMessages: () => false,
+    sessionManager: { getBranch: () => [] },
+    ui: { setFooter: () => {}, notify: () => {} },
+  } as never;
+
+  statusline(pi, testCache(), join(cacheRoot, "malformed-account.json"));
+  await assert.doesNotReject(async () => handlers.get("session_start")!({}, ctx));
+  handlers.get("session_shutdown")!({ reason: "quit" });
+});
+
+test("an old-account Codex refresh cannot retain or restore stale provider health", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
+  let accountId: string | undefined = "acct_a";
+  let accountAFetches = 0;
+  let resolveHeldAccountA!: (response: Response) => void;
+  const heldAccountA = new Promise<Response>((resolve) => { resolveHeldAccountA = resolve; });
+  const originalFetch = globalThis.fetch;
+  const originalSetInterval = globalThis.setInterval;
+  const originalClearInterval = globalThis.clearInterval;
+  const intervals = new Map<number, { callback: () => void; ms: number }>();
+  let intervalId = 0;
+  const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+  const token = () => accountId
+    ? `h.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url")}.s`
+    : undefined;
+  globalThis.setInterval = ((callback: () => void, ms: number) => {
+    const id = ++intervalId;
+    intervals.set(id, { callback, ms });
+    return id as unknown as ReturnType<typeof setInterval>;
+  }) as typeof setInterval;
+  globalThis.clearInterval = ((id: ReturnType<typeof setInterval>) => {
+    intervals.delete(id as unknown as number);
+  }) as typeof clearInterval;
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const requestedAccount = new Headers(init?.headers).get("chatgpt-account-id");
+    if (requestedAccount === "acct_a" && ++accountAFetches > 1) return heldAccountA;
+    if (requestedAccount === "acct_c") return new Response("", { status: 503 });
+    const usedPercent = requestedAccount === "acct_a" ? 20 : 70;
+    return new Response(JSON.stringify({
+      rate_limit: { primary_window: { used_percent: usedPercent, limit_window_seconds: 3_600, reset_at: Math.floor(Date.now() / 1_000) + 3_600 } },
+    }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const pi = {
+      on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+      registerCommand: () => {},
+      getThinkingLevel: () => "off",
+      exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+      appendEntry: () => {},
+    } as never;
+    const ctx = {
+      cwd: process.cwd(),
+      model: { id: "gpt-5-codex", provider: "openai-codex", baseUrl: "https://chatgpt.com/backend-api/codex" },
+      modelRegistry: {
+        isUsingOAuth: () => false,
+        getApiKeyForProvider: async () => token(),
+        getAvailable: () => [{ provider: "openai-codex", id: "gpt-5-codex", baseUrl: "https://chatgpt.com/backend-api/codex" }],
+      },
+      getContextUsage: () => undefined,
+      hasPendingMessages: () => false,
+      sessionManager: { getBranch: () => [] },
+      ui: {
+        setFooter: (factory: any) => {
+          footer = factory?.(
+            { requestRender: () => {} },
+            { fg: (_: string, text: string) => text, getColorMode: () => "16" },
+            { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
+          );
+        },
+        notify: () => {},
+      },
+    } as never;
+
+    const cache = new ProviderUsageCache(join(cacheRoot, String(cacheNumber++)), 0);
+    statusline(pi, cache, join(cacheRoot, "account-switch.json"));
+    await handlers.get("session_start")!({}, ctx);
+    await settle();
+    await settle();
+    assert.ok(footer!.render(500).join("\n").includes("20%"));
+    handlers.get("before_provider_headers")!({ headers: { authorization: `Bearer ${token()!}` } }, ctx);
+
+    for (const interval of intervals.values()) if (interval.ms === 10_000) interval.callback();
+    await settle();
+    assert.equal(accountAFetches, 2);
+    accountId = "acct_b";
+    handlers.get("model_select")!({}, ctx);
+    await settle();
+    await settle();
+    resolveHeldAccountA(new Response(JSON.stringify({
+      rate_limit: { primary_window: { used_percent: 20, limit_window_seconds: 3_600, reset_at: Math.floor(Date.now() / 1_000) + 3_600 } },
+    }), { status: 200 }));
+    await settle();
+    await settle();
+    for (const interval of intervals.values()) if (interval.ms === 10_000) interval.callback();
+    await settle();
+    await settle();
+
+    let lines = footer!.render(500).join("\n");
+    assert.ok(lines.includes("70%"), lines);
+    assert.equal(lines.includes("20%"), false, lines);
+
+    accountId = "acct_c";
+    for (const interval of intervals.values()) if (interval.ms === 10_000) interval.callback();
+    await settle();
+    await settle();
+    lines = footer!.render(500).join("\n");
+    assert.equal(lines.includes("openai-codex"), false, lines);
+    assert.equal(lines.includes("70%"), false, lines);
+
+    handlers.get("after_provider_response")!({ headers: {
+      "x-codex-primary-used-percent": "20",
+      "x-codex-primary-window-minutes": "60",
+    } }, ctx);
+    lines = footer!.render(500).join("\n");
+    assert.equal(lines.includes("20%"), false, lines);
+
+    accountId = undefined;
+    handlers.get("model_select")!({}, ctx);
+    await settle();
+    await settle();
+    lines = footer!.render(500).join("\n");
+    assert.equal(lines.includes("openai-codex"), false, lines);
+    assert.equal(lines.includes("70%"), false, lines);
+  } finally {
+    footer?.dispose?.();
+    handlers.get("session_shutdown")?.({ reason: "quit" });
+    globalThis.fetch = originalFetch;
+    globalThis.setInterval = originalSetInterval;
+    globalThis.clearInterval = originalClearInterval;
   }
 });
 
