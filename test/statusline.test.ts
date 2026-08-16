@@ -391,10 +391,11 @@ test("renders emoji segments with themed semantic colors", async () => {
       };
     },
   } as never;
+  const accountToken = `h.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_theme" } })).toString("base64url")}.s`;
   const ctx = {
     cwd: process.cwd(),
     model: { id: "gpt-5.6-terra", provider: "openai-codex", reasoning: true },
-    modelRegistry: { isUsingOAuth: () => true, getApiKeyForProvider: async () => undefined },
+    modelRegistry: { isUsingOAuth: () => true, getApiKeyForProvider: async () => accountToken },
     getContextUsage: () => ({ tokens: 110_000, percent: 55, contextWindow: 200_000 }),
     hasPendingMessages: () => false,
     sessionManager: { getBranch: () => [] },
@@ -432,8 +433,7 @@ test("renders emoji segments with themed semantic colors", async () => {
   handlers.get("turn_start")!({ timestamp: now - 1_000 });
   await handlers.get("turn_end")!({ message: { role: "assistant", usage: { input: 850, output: 74 } } }, ctx);
   const resetAt = String(Math.floor((Date.now() + 3_600_000) / 1_000));
-  const accountToken = `h.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "acct_theme" } })).toString("base64url")}.s`;
-  handlers.get("before_provider_headers")!({ headers: { authorization: `Bearer ${accountToken}` } }, ctx);
+  await handlers.get("before_provider_request")!({}, ctx);
   handlers.get("after_provider_response")!({ headers: {
     "x-codex-primary-used-percent": "60",
     "x-codex-primary-window-minutes": "60",
@@ -1134,6 +1134,7 @@ test("an old-account Codex refresh cannot retain or restore stale provider healt
   const handlers = new Map<string, (...args: any[]) => unknown>();
   let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
   let accountId: string | undefined = "acct_a";
+  let tokenLookup: (() => Promise<string | undefined>) | undefined;
   let accountAFetches = 0;
   let resolveHeldAccountA!: (response: Response) => void;
   const heldAccountA = new Promise<Response>((resolve) => { resolveHeldAccountA = resolve; });
@@ -1176,7 +1177,7 @@ test("an old-account Codex refresh cannot retain or restore stale provider healt
       model: { id: "gpt-5-codex", provider: "openai-codex", baseUrl: "https://chatgpt.com/backend-api/codex" },
       modelRegistry: {
         isUsingOAuth: () => false,
-        getApiKeyForProvider: async () => token(),
+        getApiKeyForProvider: () => tokenLookup ? tokenLookup() : Promise.resolve(token()),
         getAvailable: () => [{ provider: "openai-codex", id: "gpt-5-codex", baseUrl: "https://chatgpt.com/backend-api/codex" }],
       },
       getContextUsage: () => undefined,
@@ -1200,12 +1201,28 @@ test("an old-account Codex refresh cannot retain or restore stale provider healt
     await settle();
     await settle();
     assert.ok(footer!.render(500).join("\n").includes("20%"));
-    handlers.get("before_provider_headers")!({ headers: { authorization: `Bearer ${token()!}` } }, ctx);
+    assert.equal(handlers.has("before_provider_headers"), false);
+    await handlers.get("before_provider_request")!({}, ctx);
+    assert.ok(footer!.render(500).join("\n").includes("20%"), "starting a request must not invalidate Codex quota");
 
     for (const interval of intervals.values()) if (interval.ms === 10_000) interval.callback();
     await settle();
     assert.equal(accountAFetches, 2);
+    const accountAToken = token()!;
+    let resolveTokenLookup!: (value: string | undefined) => void;
+    const delayedTokenLookup = new Promise<string | undefined>((resolve) => { resolveTokenLookup = resolve; });
+    tokenLookup = () => delayedTokenLookup;
+    const pendingRequestStart = handlers.get("before_provider_request")!({}, ctx);
     accountId = "acct_b";
+    handlers.get("model_select")!({}, ctx);
+    resolveTokenLookup(accountAToken);
+    await pendingRequestStart;
+    handlers.get("after_provider_response")!({ headers: {
+      "x-codex-primary-used-percent": "99",
+      "x-codex-primary-window-minutes": "60",
+    } }, ctx);
+    assert.equal(footer!.render(500).join("\n").includes("99%"), false, "model selection must invalidate a request-start hook that is awaiting credentials");
+    tokenLookup = undefined;
     handlers.get("model_select")!({}, ctx);
     await settle();
     await settle();

@@ -74,6 +74,7 @@ export default function statusline(
   let codexCacheScope: string | undefined;
   // Pi serializes provider requests within a session, so one in-flight scope is sufficient.
   let codexProviderRequestScope: string | undefined;
+  let codexProviderRequestEpoch = 0;
   let codexAccountGeneration = 0;
   const isCurrentSession = (epoch: number) => sessionActive && epoch === sessionEpoch;
   const ANTHROPIC_RETRY_DELAYS_MS = [1_500, 3_000];
@@ -317,11 +318,12 @@ export default function statusline(
     if (scope !== codexCacheScope) {
       codexCacheScope = scope;
       codexAccountGeneration++;
-      providerRefresh?.invalidate("openai-codex");
+      codexProviderRequestEpoch++;
       if (activeCodex) {
         limits = [];
         syncTick();
       }
+      providerRefresh?.invalidate("openai-codex");
     }
     codexDailyUsage.selectAccount(credentials.accountId);
     return { scope, generation: codexAccountGeneration };
@@ -330,11 +332,12 @@ export default function statusline(
   const clearCodexAccount = (activeCodex: boolean) => {
     if (codexCacheScope !== undefined) {
       codexAccountGeneration++;
-      providerRefresh?.invalidate("openai-codex");
+      codexProviderRequestEpoch++;
       if (activeCodex) {
         limits = [];
         syncTick();
       }
+      providerRefresh?.invalidate("openai-codex");
     }
     codexCacheScope = undefined;
     codexDailyUsage.clearAccount();
@@ -793,28 +796,31 @@ export default function statusline(
     syncAggregateActivity();
   });
 
-  pi.on("before_provider_headers", (event, ctx) => {
-    if (ctx.model?.provider !== "openai-codex") {
-      codexProviderRequestScope = undefined;
-      return;
-    }
-    const authorization = Object.entries(event.headers)
-      .find(([key]) => key.toLowerCase() === "authorization")?.[1];
-    const accountId = typeof authorization === "string"
-      ? codexAccountId(authorization.replace(/^Bearer\s+/i, ""))
-      : undefined;
-    if (!accountId) {
-      codexProviderRequestScope = undefined;
+  pi.on("before_provider_request", async (_event, ctx) => {
+    const requestEpoch = ++codexProviderRequestEpoch;
+    const scope = ctx.model?.provider === "openai-codex" ? codexCacheScope : undefined;
+    codexProviderRequestScope = undefined;
+    if (!scope) return;
+    const credentials = await codexCredentials(ctx);
+    if (requestEpoch !== codexProviderRequestEpoch
+      || ctx.model?.provider !== "openai-codex"
+      || scope !== codexCacheScope) return;
+    if (!credentials) {
       clearCodexAccount(true);
       return;
     }
-    codexProviderRequestScope = selectCodexAccount({ accountId }, true).scope;
+    if (codexAccountScope(credentials.accountId) !== scope) {
+      selectCodexAccount(credentials, true);
+      return;
+    }
+    codexProviderRequestScope = scope;
   });
 
   pi.on("after_provider_response", (event, ctx) => {
     const codexHeaders = Object.keys(event.headers).some((key) => key.toLowerCase().startsWith("x-codex-"));
     if (codexHeaders && (ctx.model?.provider !== "openai-codex"
-      || !codexProviderRequestScope || codexProviderRequestScope !== codexCacheScope)) return;
+      || !codexProviderRequestScope
+      || codexProviderRequestScope !== codexCacheScope)) return;
     const next = parseRateLimits(event.headers);
     if (!next.length) return;
     limits = next;
@@ -824,6 +830,8 @@ export default function statusline(
   });
 
   pi.on("model_select", (_event, ctx) => {
+    codexProviderRequestEpoch++;
+    codexProviderRequestScope = undefined;
     limits = isAnthropicOAuth(ctx) ? restoreAnthropicLimits(ctx) : [];
     meter.resetThroughput();
     syncTick();
