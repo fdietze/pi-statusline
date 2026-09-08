@@ -469,7 +469,9 @@ export default function statusline(
             thinkingLevel: pi.getThinkingLevel(),
             contextUsage: ctx.getContextUsage(),
             extensionStatuses: liveExtensionStatuses,
-            gitBranch: (liveGitBranch = footerData.getGitBranch()),
+            gitBranch: (liveGitBranch = typeof gitStatus === "object" && gitStatus.branch !== undefined
+              ? gitStatus.branch
+              : footerData.getGitBranch()),
             gitStatus,
             pending: ctx.hasPendingMessages(),
             subscription,

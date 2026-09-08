@@ -2,6 +2,7 @@ export interface GitStatus {
   ahead: number;
   behind: number;
   dirty: number;
+  branch?: string;
 }
 
 export type GitStatusState = GitStatus | "error";
@@ -16,6 +17,7 @@ export const gitBranchSymbol = (nerdFont: boolean) => nerdFont ? "" : "";
 
 export function parseGitStatus(output: string): GitStatus {
   const abMatch = /(?:^|\0)# branch\.ab \+(\d+) -(\d+)(?:\0|$)/.exec(output);
+  const branchMatch = /(?:^|\0)# branch\.head ([^\0]+)(?:\0|$)/.exec(output);
   // Count working-tree changes: porcelain v2 records starting with a digit (changed files)
   // or "?" (untracked), excluding comment lines starting with "#".
   // With -z flag, records are separated by \0 (or start of string).
@@ -24,6 +26,7 @@ export function parseGitStatus(output: string): GitStatus {
     ahead: Number(abMatch?.[1] ?? 0),
     behind: Number(abMatch?.[2] ?? 0),
     dirty,
+    ...(branchMatch && { branch: branchMatch[1] === "(detached)" ? "detached" : branchMatch[1] }),
   };
 }
 
