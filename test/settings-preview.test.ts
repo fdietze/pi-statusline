@@ -96,3 +96,13 @@ test("preview immediately reflects the draft master enabled toggle", () => {
   disabled.enabled = false;
   assert.deepEqual(previewLines(disabled), ["Current session preview", "Statusline disabled"]);
 });
+
+test("current preview forwards the session name to the same bounded footer renderer", async () => {
+  const { composeFooterLine } = await import("../src/settings/resolve.ts");
+  const { renderMainLine } = await import("../src/render.ts");
+  const runtime = { cwd: "/project", sessionName: "Preview title", extensionStatuses: [{ key: "mcp", value: "MCP 2/2" }] };
+  for (const width of [12, 40, 100]) {
+    assert.equal(composeFooterLine(DEFAULT_STATUSLINE_SETTINGS, { runtime }, width),
+      renderMainLine(DEFAULT_STATUSLINE_SETTINGS, runtime, width));
+  }
+});

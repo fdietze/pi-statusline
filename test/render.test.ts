@@ -371,3 +371,62 @@ test("configured separator spacing and narrow drop priority affect the line", ()
   assert.equal(narrow.includes("20.0%"), false, narrow);
   assert.ok(narrow.includes("project") || narrow.includes("claude"), narrow);
 });
+
+test("session name is bold accent at the far right before configured trailing spacing", () => {
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
+  settings.separators.trailingSpacing = 2;
+  const theme = { fg: (_: string, text: string) => text, bold: (text: string) => `\x1b[1m${text}\x1b[22m` };
+  const accented = { ...theme, fg: (role: string, text: string) => role === "accent" ? `\x1b[36m${text}\x1b[39m` : text };
+  const line = renderMainLine(settings, { cwd: "/project", sessionName: "Fix login" }, 80, accented);
+  assert.ok(line.endsWith("\x1b[36m\x1b[1mFix login\x1b[22m\x1b[39m  "), line);
+  assert.equal(visibleWidth(line), 80);
+});
+
+test("session name reserves at most half the content width and never overflows Unicode/narrow rows", () => {
+  const names = ["A very long session name".repeat(5), "界👩‍💻e\u0301".repeat(12), "👨‍👩‍👦", "x"];
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
+  for (const trailing of [0, 2, 5]) {
+    settings.separators.trailingSpacing = trailing;
+    for (let width = 0; width <= 80; width++) {
+      const inner = Math.max(0, width - trailing);
+      for (const sessionName of names) {
+        const named = renderMainLine(settings, { cwd: "/project", sessionName }, width);
+        assert.ok(visibleWidth(named) <= width, `${width}: ${named}`);
+        // With no left segments, the title's visible suffix cannot exceed its half-row budget.
+        const empty = structuredClone(settings);
+        for (const key of Object.keys(empty.segments)) empty.segments[key as keyof typeof empty.segments] = false;
+        const title = renderMainLine(empty, { cwd: "", sessionName }, width).trim();
+        assert.ok(visibleWidth(title) <= Math.floor(inner / 2), `${width}: ${title}`);
+      }
+    }
+  }
+});
+
+test("session names are plain single-line text, stripping ANSI/OSC, controls and bidi overrides", () => {
+  const dirty = " \x1b[31mRed\x1b[0m\nname\t\x1b]8;;https://evil.example\x07link\x1b]8;;\x1b\\\u202e\x00 ";
+  const line = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, { cwd: "", sessionName: dirty }, 80);
+  assert.ok(line.endsWith("Red name link"), line);
+  assert.doesNotMatch(line, /[\x00-\x1f\x7f-\x9f\u202e]/);
+  assert.equal(visibleWidth(line), 80);
+});
+
+test("session title survives left segment dropping and follows existing right-aligned statuses", () => {
+  const snap = { cwd: "/project", model: { id: "large-model-name" }, sessionName: "Investigate", extensionStatuses: [{ key: "mcp", value: "MCP 2/2" }] };
+  const full = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, snap, 150);
+  assert.ok(full.indexOf("MCP 2/2") < full.indexOf("Investigate"), full);
+  assert.ok(full.endsWith("Investigate"), full);
+  const narrow = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, snap, 24);
+  assert.ok(narrow.endsWith("Investigate"), narrow);
+  assert.equal(narrow.includes("large-model-name"), false);
+  assert.equal(visibleWidth(narrow), 24);
+});
+
+test("absent, cleared and control-only session names preserve the exact existing layout", () => {
+  const snap = { cwd: "/project", extensionStatuses: [{ key: "mcp", value: "MCP 2/2" }] };
+  for (let width = 0; width < 100; width++) {
+    const unnamed = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, snap, width);
+    for (const sessionName of [undefined, "", " \t\r\n", "\x1b[31m\x1b[0m"]) {
+      assert.equal(renderMainLine(DEFAULT_STATUSLINE_SETTINGS, { ...snap, sessionName }, width), unnamed);
+    }
+  }
+});

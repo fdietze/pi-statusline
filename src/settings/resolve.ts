@@ -15,6 +15,7 @@ import { renderMainLine, type ExtensionStatus, type RenderTheme } from "../rende
 /** Immutable runtime inputs the renderer reads (footer uses live state, preview uses a fixture). */
 export interface RuntimeSnapshot {
   cwd?: string;
+  sessionName?: string;
   model?: { id: string; provider?: string; reasoning?: boolean; baseUrl?: string };
   /** Active provider id, used to resolve per-provider activeModel tri-state overrides. */
   activeProvider?: string;
@@ -151,6 +152,7 @@ export function composeFooterLine(
   const { runtime, capability } = ctx;
   return renderMainLine(settings, {
     cwd: runtime.cwd ?? "",
+    sessionName: runtime.sessionName,
     model: runtime.model
       ? { id: runtime.model.id, provider: runtime.model.provider, reasoning: runtime.model.reasoning, baseUrl: runtime.model.baseUrl }
       : undefined,

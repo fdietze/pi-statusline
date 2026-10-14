@@ -1,4 +1,6 @@
-# @shvax/pi-statusline
+# pi-statusline
+
+A personal fork of [futile/pi-statusline](https://github.com/futile/pi-statusline/tree/feat/extension-statuses), with a prominent session name on the first footer row.
 
 A configurable, single-line footer for [pi](https://github.com/earendil-works/pi-mono). It uses the active pi theme for semantic colors, shows only the data available for the active model and provider, includes statuses published by other extensions, and drops lower-priority segments before truncating at narrow widths.
 
@@ -15,26 +17,25 @@ The first line is a local model (live token rates), the second an Anthropic subs
 
 Usage is a thin continuous line with rounded half-line ends and a dark-gray track. Its bright truecolor fill gives a restrained glow, moving smoothly from neon green through vivid orange to blood red as usage rises. Each provider-reported window includes a compact live reset countdown. When Codex also reports the window duration, the footer compares consumed usage with the elapsed share of the window and appends an approximate `over`, `under`, or measured `on pace` value such as `≈0.6pp on pace`; it does not show a per-day allowance.
 
-## Install
+## Install and develop
 
 ```bash
-pi install npm:@shvax/pi-statusline
-```
-
-Try only a local checkout without installed extensions:
-
-```bash
+git clone git@github.com:fdietze/pi-statusline.git
+cd pi-statusline
+git checkout feat/session-name
+npm ci
 pi --no-extensions -e .
 ```
 
-This fork also commits a project-local `.pi/settings.json`. When Pi is launched
-from the repository and the project is trusted, that configuration disables the
-globally installed `futile/pi-statusline` extension and loads the working tree
-instead. Other installed extensions remain available, and Pi launched outside
-the repository continues to use the commit-pinned Git package. Run `npm ci`
-first so the working tree has its runtime dependencies.
+The last command tests the checkout without loading other extensions. The upstream npm package (`@shvax/pi-statusline`) does not contain this fork's changes.
+
+In [fdietze/dotfiles](https://github.com/fdietze/dotfiles), Nix pins a reviewed fork commit and checks it against the pinned Pi version. On the development host, `my.devLinks` instead loads `~/projects/pi-statusline`, including its `src/` and local `node_modules/`. After editing, run `/reload` in Pi. The Nix integration lives in `modules/home-manager/profiles/ai-agents/pi-statusline.nix` and `pi-extensions.nix`.
+
+The project-local `.pi/settings.json` loads this checkout and disables the globally installed upstream Git package. It does not disable the dotfiles' Nix loader; use `--no-extensions -e .` for an isolated test.
 
 ## Segments
+
+A named session is shown at the far right of the first footer row, bold and in the theme's accent color. It reserves at most half the row width; long names are truncated and lower-priority left segments drop first. Renaming, clearing the name, or switching sessions updates the footer without additional polling. An unnamed session keeps the upstream layout. The settings preview uses the same renderer. This title is separate from the `session` quota segment below.
 
 At full width, segments render in the order below. When the line no longer fits, the configured narrow-drop priority removes segments one at a time; by default `time` drops first and `context` is retained until last.
 
@@ -49,7 +50,7 @@ At full width, segments render in the order below. When the line no longer fits,
 | `throughput` | on | Token throughput, adapted to how the model is billed — live `↑/↓` rates, a running `🧾` token/cost ledger, or nothing (see below) |
 | `time` | on | Live-ticking cumulative active agent time (foreground plus compatible background sources) |
 
-The Git HUD defaults on inside repositories: `main ✓`. It shows `↓` incoming/behind and `↑` outgoing/ahead counts; `✓` means neither is pending. Local working-tree changes are intentionally ignored. Colors use the active theme's accent, success, warning, and error roles.
+The Git HUD defaults on inside repositories: `main ✓`. It shows `↓` incoming/behind and `↑` outgoing/ahead counts; `✓` means neither is pending. Local working-tree changes appear as `● N`. Colors use the active theme's accent, success, warning, and error roles.
 
 Extension statuses are read from Pi's footer data on every render, so a `ctx.ui.setStatus()` update appears without coupling this footer to a particular extension. Multiple statuses retain Pi's map order and any ANSI styling supplied by their publishers. They are dropped only after the other default narrow-priority segments when the terminal cannot fit them.
 

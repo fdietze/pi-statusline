@@ -15,7 +15,8 @@ import { estimateTokens, type ThroughputLevel } from "./throughput.ts";
 import { deriveRateLimitPace, type RateLimitWindow } from "./ratelimit.ts";
 import type { ResetFormat, StatuslineSettings } from "./settings/schema.ts";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { stripVTControlCharacters } from "node:util";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 /** Match Pi's single-line status normalization while preserving extension-provided ANSI styling. */
 function normalizeExtensionStatus(status: string): string {
@@ -36,6 +37,7 @@ function stripPonytailActivityIndicator(status: string): string {
 
 export interface RenderTheme {
   fg: (color: ThemeColor, text: string) => string;
+  bold?: (text: string) => string;
   getColorMode?: () => string;
   getFgAnsi?: (color: ThemeColor) => string;
 }
@@ -61,6 +63,8 @@ export interface ExtensionStatus {
 
 export interface FooterSnapshot {
   cwd: string;
+  /** Current session name, treated as plain untrusted text. */
+  sessionName?: string;
   model?: { id: string; provider?: string; reasoning?: boolean; baseUrl?: string };
   thinkingLevel?: string;
   contextUsage?: ContextUsage;
@@ -400,7 +404,15 @@ export function renderMainLine(
   const inner = Math.max(0, width - Math.min(settings.separators.trailingSpacing, Math.max(0, width)));
   const separator = `${settings.separators.padding}${" ".repeat(settings.separators.spacingBefore)}${settings.separators.main}${" ".repeat(settings.separators.spacingAfter)}`;
   const paintedSeparator = paint("dim", separator);
-  const line = composeSegments(segments, inner, paintedSeparator, settings.layout.narrowPriority);
+  // Inversion: normalize terminal controls before styling untrusted session metadata.
+  const name = stripVTControlCharacters(snap.sessionName ?? "")
+    .replace(/[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ")
+    .replace(/\s+/g, " ").trim();
+  const title = truncateToWidth(name, Math.floor(inner / 2), "…");
+  const titleWidth = visibleWidth(title);
+  // Reserve the title before dropping left segments; unnamed sessions keep the same budget.
+  const leftBudget = titleWidth ? Math.max(0, inner - titleWidth - 1) : inner;
+  const line = composeSegments(segments, leftBudget, paintedSeparator, settings.layout.narrowPriority);
   const fullLeft = rightExtensionStatusValues.length
     ? composeSegments(segments, Number.MAX_SAFE_INTEGER, paintedSeparator, settings.layout.narrowPriority)
     : line;
@@ -408,15 +420,18 @@ export function renderMainLine(
   const minimumGap = line ? 1 : 0;
   // Rightmost configured statuses have the highest narrow-width priority. Try the complete
   // cluster first, then drop values from its left until the remaining suffix fits.
-  const rightExtensionStatuses = visibleWidth(fullLeft) <= inner
+  const rightExtensionStatuses = visibleWidth(fullLeft) <= leftBudget
     ? rightExtensionStatusValues
       .map((_, index) => rightExtensionStatusValues.slice(index).join(paintedSeparator))
-      .find((candidate) => leftWidth + minimumGap + visibleWidth(candidate) <= inner) ?? ""
+      .find((candidate) => leftWidth + minimumGap + visibleWidth(candidate) <= leftBudget) ?? ""
     : "";
   const rightWidth = visibleWidth(rightExtensionStatuses);
   const aligned = rightExtensionStatuses
-    ? `${line}${" ".repeat(inner - leftWidth - rightWidth)}${rightExtensionStatuses}`
+    ? `${line}${" ".repeat(leftBudget - leftWidth - rightWidth)}${rightExtensionStatuses}`
     : line;
   const trailing = Math.min(settings.separators.trailingSpacing, Math.max(0, width));
-  return aligned + " ".repeat(trailing);
+  const named = titleWidth
+    ? `${aligned}${" ".repeat(inner - visibleWidth(aligned) - titleWidth)}${paint("accent", theme?.bold ? theme.bold(title) : title)}`
+    : aligned;
+  return named + " ".repeat(trailing);
 }

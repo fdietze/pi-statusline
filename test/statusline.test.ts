@@ -1380,3 +1380,78 @@ test("Providers screen via command handler lists all discovered providers", asyn
   // No row should contain the term "catalog-only" or come from outside getAvailable().
   assert.equal(lines.some((line) => line.includes("catalog-only")), false, "catalog-only providers must not appear");
 });
+
+test("reads current session names on render across rename, clear, resume and new session", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  const statuses = new Map<string, string>();
+  let reads = 0;
+  let sessionName: string | undefined;
+  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
+  const pi = {
+    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+    registerCommand: () => {},
+    getThinkingLevel: () => "off",
+    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+  } as never;
+  const ctx = {
+    cwd: process.cwd(),
+    getContextUsage: () => undefined,
+    hasPendingMessages: () => false,
+    sessionManager: { getBranch: () => [], getSessionName: () => sessionName },
+    ui: {
+      setFooter: (factory: any) => {
+        footer = factory?.(
+          { requestRender: () => {} },
+          { fg: (_: string, text: string) => text, getColorMode: () => "16", getFgAnsi: () => "" },
+          {
+            getGitBranch: () => null,
+            getExtensionStatuses: () => {
+              reads++;
+              return statuses;
+            },
+            getAvailableProviderCount: () => 1,
+            onBranchChange: () => () => {},
+          },
+        );
+      },
+      notify: () => {},
+    },
+  } as never;
+
+  statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
+  await handlers.get("session_start")!({}, ctx);
+  const unnamed = footer!.render(200)[0]!;
+  sessionName = "First name";
+  assert.ok(footer!.render(200)[0]!.trimEnd().endsWith(sessionName));
+  sessionName = "Renamed";
+  assert.ok(footer!.render(200)[0]!.trimEnd().endsWith(sessionName));
+  sessionName = undefined;
+  assert.equal(footer!.render(200)[0]!, unnamed);
+  await handlers.get("session_shutdown")!({ reason: "quit" });
+  sessionName = "Resumed session";
+  await handlers.get("session_start")!({}, ctx);
+  assert.ok(footer!.render(200)[0]!.trimEnd().endsWith(sessionName));
+  await handlers.get("session_shutdown")!({ reason: "quit" });
+  sessionName = undefined;
+  await handlers.get("session_start")!({}, ctx);
+  assert.equal(footer!.render(200)[0]!, unnamed);
+  footer?.dispose?.();
+  await handlers.get("session_shutdown")!({ reason: "quit" });
+});
+
+test("settings overlay re-reads renamed and cleared session names on each preview render", async () => {
+  const h = settingsHarness();
+  let sessionName: string | undefined = "Overlay title";
+  (h.ctx as any).sessionManager.getSessionName = () => sessionName;
+  await h.handlers.get("session_start")!({}, h.ctx);
+  await h.commandDef.handler("", h.ctx);
+  assert.ok(h.component.render(100).join("\n").includes("Overlay title"));
+  sessionName = "Renamed overlay";
+  const renamed = h.component.render(100).join("\n");
+  assert.ok(renamed.includes(sessionName), renamed);
+  assert.equal(renamed.includes("Overlay title"), false);
+  sessionName = undefined;
+  assert.equal(h.component.render(100).join("\n").includes("Renamed overlay"), false);
+  h.component.dispose?.();
+  await h.handlers.get("session_shutdown")!({ reason: "quit" });
+});

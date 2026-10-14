@@ -465,6 +465,8 @@ export default function statusline(
           lastRenderedTime = tickLabel();
           const line = renderMainLine(settings, {
             cwd: ctx.cwd,
+            // Pi already requests a render on session_info_changed; read fresh metadata here.
+            sessionName: ctx.sessionManager.getSessionName?.(),
             model: ctx.model,
             thinkingLevel: pi.getThinkingLevel(),
             contextUsage: ctx.getContextUsage(),
@@ -582,6 +584,7 @@ export default function statusline(
         capability: previewCapability,
         runtime: {
           cwd: ctx.cwd,
+          sessionName: ctx.sessionManager.getSessionName?.(),
           model: ctx.model ? { id: ctx.model.id, provider: ctx.model.provider, reasoning: ctx.model.reasoning, baseUrl: ctx.model.baseUrl } : undefined,
           activeProvider: ctx.model?.provider,
           thinkingLevel: pi.getThinkingLevel(),
