@@ -634,9 +634,15 @@ test("restores Anthropic limits when a session reloads", async () => {
   footer?.dispose?.();
 });
 
-test("estimates throughput from response text when a provider reports no usage", async () => {
+test("estimates throughput from response text when a provider reports no usage", async (t) => {
+  // The exact rate assertions require a one-second turn, not one second plus scheduling delay.
+  // Mock before statusline constructs TurnMeter, which captures Date.now as its default clock.
+  // https://nodejs.org/api/test.html#mockmethodobject-methodname-implementation-options
+  let now = 10_000;
+  t.mock.method(Date, "now", () => now);
   const handlers = new Map<string, (...args: any[]) => unknown>();
   let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
+  t.after(() => footer?.dispose?.());
   const pi = {
     on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
     registerCommand: () => {},
@@ -665,8 +671,8 @@ test("estimates throughput from response text when a provider reports no usage",
   statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
   await handlers.get("session_start")!({}, ctx);
   handlers.get("context")!({ messages: [{ role: "user", content: "a".repeat(400) }] });
-  const now = Date.now();
-  handlers.get("turn_start")!({ timestamp: now - 1_000 });
+  handlers.get("turn_start")!({ timestamp: now });
+  now += 1_000;
   await handlers.get("turn_end")!({
     message: { role: "assistant", usage: { input: 0, output: 0 }, content: [{ type: "text", text: "b".repeat(200) }] },
   }, ctx);
@@ -674,7 +680,6 @@ test("estimates throughput from response text when a provider reports no usage",
   const line = footer!.render(500)[0]!;
   assert.ok(line.includes("↑100"));
   assert.ok(line.includes("↓50"));
-  footer?.dispose?.();
 });
 
 test("shows an API token ledger (not a bogus prompt rate) for hosted providers when idle", async () => {
