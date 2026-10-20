@@ -61,10 +61,22 @@ export interface ExtensionStatus {
   value: string;
 }
 
+/**
+ * Inversion: normalize terminal controls and bidi overrides before styling untrusted metadata
+ * (session name, host name), so it cannot restyle or reorder the footer.
+ */
+function plainText(value: string | undefined): string {
+  return stripVTControlCharacters(value ?? "")
+    .replace(/[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
 export interface FooterSnapshot {
   cwd: string;
   /** Current session name, treated as plain untrusted text. */
   sessionName?: string;
+  /** Short host name shown before the project, treated as plain untrusted text. */
+  hostname?: string;
   model?: { id: string; provider?: string; reasoning?: boolean; baseUrl?: string };
   thinkingLevel?: string;
   contextUsage?: ContextUsage;
@@ -377,7 +389,9 @@ export function renderMainLine(
   const orderRank = new Map(settings.layout.segmentOrder.map((id, index) => [id, index] as const));
   const segments = createSegments(visibility, {
     project: () => {
-      const head = paint("muted", withSpace("project", deriveProject(snap.cwd)));
+      // The host belongs to the project head so it drops with the project under width pressure.
+      const host = plainText(snap.hostname);
+      const head = paint("muted", `${host ? `${host} ` : ""}${withSpace("project", deriveProject(snap.cwd))}`);
       const tail = `${git ? `${paint("dim", settings.separators.projectGit)}${git}` : ""}${pending ? ` ${paint("muted", "queued")}` : ""}`;
       return `${head}${tail}`;
     },
@@ -404,10 +418,7 @@ export function renderMainLine(
   const inner = Math.max(0, width - Math.min(settings.separators.trailingSpacing, Math.max(0, width)));
   const separator = `${settings.separators.padding}${" ".repeat(settings.separators.spacingBefore)}${settings.separators.main}${" ".repeat(settings.separators.spacingAfter)}`;
   const paintedSeparator = paint("dim", separator);
-  // Inversion: normalize terminal controls before styling untrusted session metadata.
-  const name = stripVTControlCharacters(snap.sessionName ?? "")
-    .replace(/[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ")
-    .replace(/\s+/g, " ").trim();
+  const name = plainText(snap.sessionName);
   const title = truncateToWidth(name, Math.floor(inner / 2), "…");
   const titleWidth = visibleWidth(title);
   // Reserve the title before dropping left segments; unnamed sessions keep the same budget.

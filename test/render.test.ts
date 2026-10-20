@@ -430,3 +430,33 @@ test("absent, cleared and control-only session names preserve the exact existing
     }
   }
 });
+
+test("host name leads the muted project head and drops with the project segment", () => {
+  const theme = { fg: (role: string, text: string) => `<${role}>${text}</${role}>` };
+  const line = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, { cwd: "/work/project", hostname: "gurke" }, 80, theme);
+  assert.ok(line.startsWith("<muted>gurke 📁 project</muted>"), line);
+  const snap = { cwd: "/work/project", hostname: "gurke", model: { id: "large-model-name" }, contextUsage: { percent: 20, tokens: 20_000, contextWindow: 100_000 } };
+  for (let width = 0; width <= 100; width++) {
+    const plain = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, snap, width);
+    assert.ok(visibleWidth(plain) <= width, `${width}: ${plain}`);
+    // The host never appears without (the start of) its project head directly after it.
+    if (plain.includes("gurke")) assert.ok(plain.startsWith("gurke"), `${width}: ${plain}`);
+    if (plain.includes("📁 project")) assert.ok(plain.includes("gurke 📁 project"), `${width}: ${plain}`);
+  }
+});
+
+test("absent, empty and control-only host names preserve the exact existing layout", () => {
+  const snap = { cwd: "/project", model: { id: "m" } };
+  for (let width = 0; width < 60; width++) {
+    const hostless = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, snap, width);
+    for (const hostname of [undefined, "", " \t", "\x1b[31m\x1b[0m"]) {
+      assert.equal(renderMainLine(DEFAULT_STATUSLINE_SETTINGS, { ...snap, hostname }, width), hostless);
+    }
+  }
+});
+
+test("host names are plain single-line text, stripping ANSI, controls and bidi overrides", () => {
+  const line = renderMainLine(DEFAULT_STATUSLINE_SETTINGS, { cwd: "/project", hostname: "\x1b[31mev\nil\u202e\x1b[0m" }, 80);
+  assert.ok(line.startsWith("ev il 📁 project"), line);
+  assert.doesNotMatch(line, /[\x00-\x1f\x7f-\x9f\u202e]/);
+});

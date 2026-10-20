@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
 import { initTheme } from "@earendil-works/pi-coding-agent";
@@ -1426,6 +1426,7 @@ test("reads current session names on render across rename, clear, resume and new
   statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
   await handlers.get("session_start")!({}, ctx);
   const unnamed = footer!.render(200)[0]!;
+  assert.ok(unnamed.trimStart().startsWith(`${hostname().split(".")[0]} `), unnamed);
   sessionName = "First name";
   assert.ok(footer!.render(200)[0]!.trimEnd().endsWith(sessionName));
   sessionName = "Renamed";

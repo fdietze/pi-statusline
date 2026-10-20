@@ -16,6 +16,7 @@ import { renderMainLine, type ExtensionStatus, type RenderTheme } from "../rende
 export interface RuntimeSnapshot {
   cwd?: string;
   sessionName?: string;
+  hostname?: string;
   model?: { id: string; provider?: string; reasoning?: boolean; baseUrl?: string };
   /** Active provider id, used to resolve per-provider activeModel tri-state overrides. */
   activeProvider?: string;
@@ -153,6 +154,7 @@ export function composeFooterLine(
   return renderMainLine(settings, {
     cwd: runtime.cwd ?? "",
     sessionName: runtime.sessionName,
+    hostname: runtime.hostname,
     model: runtime.model
       ? { id: runtime.model.id, provider: runtime.model.provider, reasoning: runtime.model.reasoning, baseUrl: runtime.model.baseUrl }
       : undefined,

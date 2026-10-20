@@ -1,6 +1,6 @@
 # pi-statusline
 
-A personal fork of [futile/pi-statusline](https://github.com/futile/pi-statusline/tree/feat/extension-statuses), with a prominent session name on the first footer row.
+A personal fork of [futile/pi-statusline](https://github.com/futile/pi-statusline/tree/feat/extension-statuses), with the host name before the project and a prominent session name on the first footer row.
 
 A configurable, single-line footer for [pi](https://github.com/earendil-works/pi-mono). It uses the active pi theme for semantic colors, shows only the data available for the active model and provider, includes statuses published by other extensions, and drops lower-priority segments before truncating at narrow widths.
 

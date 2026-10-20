@@ -15,6 +15,7 @@ const localFixture: PreviewFixture = Object.freeze({
   label: "Local model",
   snapshot: Object.freeze({
     cwd: "/home/user/project",
+    hostname: "workstation",
     model: { id: "qwen2.5-coder", provider: "ollama", reasoning: true, baseUrl: "http://localhost:11434" },
     activeProvider: "ollama",
     thinkingLevel: "medium",
@@ -40,6 +41,7 @@ const subscriptionFixture: PreviewFixture = Object.freeze({
   label: "Subscription provider",
   snapshot: Object.freeze({
     cwd: "/home/user/project",
+    hostname: "workstation",
     model: { id: "claude-sonnet-4-5", provider: "anthropic", reasoning: true },
     activeProvider: "anthropic",
     thinkingLevel: "high",
@@ -69,6 +71,7 @@ const apiFixture: PreviewFixture = Object.freeze({
   label: "API provider",
   snapshot: Object.freeze({
     cwd: "/home/user/project",
+    hostname: "workstation",
     model: { id: "gpt-4o", provider: "openrouter", reasoning: true },
     activeProvider: "openrouter",
     thinkingLevel: "medium",
@@ -172,6 +175,7 @@ function resolveCurrentPreview(input: PreviewInput): { label: string; ctx: Resol
     capability: cap ?? live.capability,
     runtime: {
       cwd: live.runtime.cwd,
+      hostname: live.runtime.hostname,
       thinkingLevel: live.runtime.thinkingLevel,
       contextUsage: live.runtime.contextUsage,
       extensionStatuses: live.runtime.extensionStatuses,

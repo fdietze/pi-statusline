@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { parseKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import {
   AGENT_ACTIVITY_REQUEST_EVENT,
@@ -36,6 +37,9 @@ import type { StatuslineSettings } from "../src/settings/schema.ts";
 // Anthropic's OAuth usage endpoint (api.anthropic.com/api/oauth/usage) throttles hard and hands
 // out sticky 429s, so poll it less often than the 10s cadence the other providers share.
 const ANTHROPIC_REFRESH_MS = 30_000;
+// The host name is read once per process; the short label (before the first dot) identifies
+// the machine for local and SSH sessions alike.
+const HOSTNAME = hostname().split(".")[0];
 
 export default function statusline(
   pi: ExtensionAPI,
@@ -467,6 +471,7 @@ export default function statusline(
             cwd: ctx.cwd,
             // Pi already requests a render on session_info_changed; read fresh metadata here.
             sessionName: ctx.sessionManager.getSessionName?.(),
+            hostname: HOSTNAME,
             model: ctx.model,
             thinkingLevel: pi.getThinkingLevel(),
             contextUsage: ctx.getContextUsage(),
@@ -585,6 +590,7 @@ export default function statusline(
         runtime: {
           cwd: ctx.cwd,
           sessionName: ctx.sessionManager.getSessionName?.(),
+          hostname: HOSTNAME,
           model: ctx.model ? { id: ctx.model.id, provider: ctx.model.provider, reasoning: ctx.model.reasoning, baseUrl: ctx.model.baseUrl } : undefined,
           activeProvider: ctx.model?.provider,
           thinkingLevel: pi.getThinkingLevel(),

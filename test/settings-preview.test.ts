@@ -97,12 +97,19 @@ test("preview immediately reflects the draft master enabled toggle", () => {
   assert.deepEqual(previewLines(disabled), ["Current session preview", "Statusline disabled"]);
 });
 
-test("current preview forwards the session name to the same bounded footer renderer", async () => {
+test("current preview forwards the session and host names to the same bounded footer renderer", async () => {
   const { composeFooterLine } = await import("../src/settings/resolve.ts");
   const { renderMainLine } = await import("../src/render.ts");
-  const runtime = { cwd: "/project", sessionName: "Preview title", extensionStatuses: [{ key: "mcp", value: "MCP 2/2" }] };
+  const runtime = { cwd: "/project", sessionName: "Preview title", hostname: "previewhost", extensionStatuses: [{ key: "mcp", value: "MCP 2/2" }] };
   for (const width of [12, 40, 100]) {
     assert.equal(composeFooterLine(DEFAULT_STATUSLINE_SETTINGS, { runtime }, width),
       renderMainLine(DEFAULT_STATUSLINE_SETTINGS, runtime, width));
+  }
+});
+
+test("fixture previews show a fixed host name before the project", () => {
+  for (const mode of ["local", "subscription", "api"] as const) {
+    const [, main] = renderPreview({ settings: DEFAULT_STATUSLINE_SETTINGS, mode, width: 200, current: liveContext(), providers });
+    assert.ok(main!.startsWith("workstation 📁 project"), main);
   }
 });
