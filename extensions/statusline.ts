@@ -164,7 +164,11 @@ export default function statusline(
       return;
     }
     try {
-      const result = await pi.exec("git", ["status", "--porcelain=v2", "--branch", "-z"], { cwd: ctx.cwd, timeout: 2_000 });
+      // --no-optional-locks: a footer poll must never take the repo's index.lock.
+      // Otherwise every poll briefly blocks other git writers, and the 2 s timeout's
+      // SIGTERM can kill git between creating index.lock and registering its cleanup,
+      // which leaves a stale 0-byte lock behind under heavy disk IO.
+      const result = await pi.exec("git", ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z"], { cwd: ctx.cwd, timeout: 2_000 });
       if (!isCurrentSession(epoch)) return;
       gitStatus = result.code === 0 ? parseGitStatus(result.stdout) : "error";
     } catch {

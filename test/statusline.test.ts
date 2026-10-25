@@ -426,7 +426,7 @@ test("renders emoji segments with themed semantic colors", async () => {
   assert.equal(initial.includes(" t/s"), false);
   for (const label of ["🪟 </muted><success>55.0%/200K"]) assert.ok(initial.includes(label));
   assert.ok(initial.includes("📁 pi-statusline</muted><dim> > </dim><accent>feature/statusline</accent> <warning>● 2</warning> <warning>↓1</warning> <accent>↑2</accent>"));
-  assert.deepEqual(execCalls[0], ["git", ["status", "--porcelain=v2", "--branch", "-z"], { cwd: process.cwd(), timeout: 2_000 }]);
+  assert.deepEqual(execCalls[0], ["git", ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z"], { cwd: process.cwd(), timeout: 2_000 }]);
   assert.equal(initial.includes("5h"), false);
   assert.equal(initial.includes("wk"), false);
   const now = Date.now();
