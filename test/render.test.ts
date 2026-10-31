@@ -208,33 +208,30 @@ test("configured extension status keys align right without moving other statuses
   assert.ok(wideGlyphLine.endsWith(`${styledWideMcp}  `), wideGlyphLine);
 });
 
-test("default right cluster strips Ponytail's circle, separates statuses, and drops Ponytail first", () => {
+test("right cluster separates configured statuses and drops leftmost values first", () => {
   const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
   for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
   settings.segments.extensions = true;
   settings.layout.segmentOrder = ["extensions"];
   settings.layout.narrowPriority = ["extensions"];
+  settings.layout.rightAlignedExtensionStatuses = ["review", "mcp"];
 
-  const ponytail = "🐴 \x1b[2mponytail: \x1b[22m🌿 LITE";
+  const review = "\x1b[2mreview: \x1b[22mLITE";
   const mcp = "🔌 MCP 0/3";
-  const cluster = `${ponytail} > ${mcp}`;
+  const cluster = `${review} > ${mcp}`;
+  const snapshot = {
+    cwd: "/tmp/project",
+    extensionStatuses: [
+      { key: "review", value: review },
+      { key: "mcp", value: "MCP 0/3" },
+    ],
+  } as never;
 
-  for (const circle of ["○", "●"]) {
-    const snapshot = {
-      cwd: "/tmp/project",
-      extensionStatuses: [
-        { key: "ponytail", value: `\x1b[2m${circle}\x1b[22m ${ponytail}` },
-        { key: "mcp", value: "MCP 0/3" },
-      ],
-    } as never;
-
-    assert.equal(renderMainLine(settings, snapshot, visibleWidth(cluster)), cluster);
-    const mcpOnly = renderMainLine(settings, snapshot, visibleWidth(cluster) - 1);
-    assert.ok(mcpOnly.endsWith(mcp), mcpOnly);
-    assert.equal(mcpOnly.includes("ponytail"), false, mcpOnly);
-    assert.doesNotMatch(mcpOnly, /○|●/);
-    assert.equal(renderMainLine(settings, snapshot, visibleWidth(mcp) - 1), "");
-  }
+  assert.equal(renderMainLine(settings, snapshot, visibleWidth(cluster)), cluster);
+  const mcpOnly = renderMainLine(settings, snapshot, visibleWidth(cluster) - 1);
+  assert.ok(mcpOnly.endsWith(mcp), mcpOnly);
+  assert.equal(mcpOnly.includes("review"), false, mcpOnly);
+  assert.equal(renderMainLine(settings, snapshot, visibleWidth(mcp) - 1), "");
 });
 
 test("right-aligned statuses disappear when the left side already needs responsive dropping", () => {

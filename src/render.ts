@@ -23,11 +23,6 @@ function normalizeExtensionStatus(status: string): string {
   return status.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim();
 }
 
-/** Ponytail publishes a styled idle/busy circle; the footer intentionally omits that prefix. */
-function stripPonytailActivityIndicator(status: string): string {
-  return status.replace(/^(?:\x1b\[[0-9;]*m)*(?:○|●)(?:\x1b\[[0-9;]*m)* /, "");
-}
-
 /**
  * Single source of truth for the statusline's main line. Both the live footer
  * (extensions/statusline.ts) and the settings preview (settings/resolve.ts) render
@@ -356,10 +351,7 @@ export function renderMainLine(
   };
 
   const normalizedExtensionStatuses = (snap.extensionStatuses ?? [])
-    .map(({ key, value }) => {
-      const normalized = normalizeExtensionStatus(value);
-      return { key, value: key === "ponytail" ? stripPonytailActivityIndicator(normalized) : normalized };
-    })
+    .map(({ key, value }) => ({ key, value: normalizeExtensionStatus(value) }))
     .filter(({ value }) => value.length > 0);
   const rightAlignedStatusKeys = settings.layout.rightAlignedExtensionStatuses ?? [];
   const rightAlignedKeys = new Set(rightAlignedStatusKeys);

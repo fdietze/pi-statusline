@@ -130,7 +130,7 @@ export function migrateLegacySettings(legacy: unknown): Partial<StatuslineSettin
     maxWidth: 0,
     segmentOrder: SEGMENT_ORDER.map((id) => id),
     narrowPriority: ["time", "throughput", "project", "effort", "model", "session", "extensions"] as SegmentId[],
-    rightAlignedExtensionStatuses: ["ponytail", "mcp"],
+    rightAlignedExtensionStatuses: ["mcp"],
   };
 
   // Segments global visibility

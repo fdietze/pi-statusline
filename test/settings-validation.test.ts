@@ -153,13 +153,18 @@ test("validation: version 1 migration preserves customized ordering and zero spa
   assert.equal(result.settings.separators.spacingAfter, 0);
 });
 
-test("validation: version 2 settings adopt keyed Ponytail and MCP right alignment", () => {
+test("validation: version 2 settings adopt keyed MCP right alignment", () => {
   const input = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as unknown as Record<string, any>;
   input.version = 2;
   delete input.layout.rightAlignedExtensionStatuses;
 
   const result = parseStatuslineSettings(input);
   assert.equal(result.settings.version, CURRENT_VERSION);
+  assert.deepEqual(result.settings.layout.rightAlignedExtensionStatuses, ["mcp"]);
+});
+
+test("validation: saved right-aligned keys load verbatim, including keys no extension publishes", () => {
+  const result = parseStatuslineSettings({ version: CURRENT_VERSION, layout: { rightAlignedExtensionStatuses: ["ponytail", "mcp"] } });
   assert.deepEqual(result.settings.layout.rightAlignedExtensionStatuses, ["ponytail", "mcp"]);
 });
 
