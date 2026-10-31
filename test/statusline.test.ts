@@ -61,6 +61,88 @@ test("runs no one-second timer without reset countdowns and stops polling on dis
   }
 });
 
+test("wakes once per shown countdown minute and never while no countdown is upcoming", async () => {
+  const handlers = new Map<string, (...args: any[]) => unknown>();
+  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
+  let clock = 1_800_000_000_000;
+  let renders = 0;
+  const timeouts = new Map<number, { callback: () => void; ms: number }>();
+  let timeoutId = 0;
+  const originalNow = Date.now;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  Date.now = () => clock;
+  globalThis.setTimeout = ((callback: () => void, ms: number) => {
+    const id = ++timeoutId;
+    timeouts.set(id, { callback, ms });
+    return id as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  globalThis.clearTimeout = ((id: ReturnType<typeof setTimeout>) => {
+    timeouts.delete(id as unknown as number);
+  }) as typeof clearTimeout;
+  // Anthropic limit retries use 1.5 s / 3 s timeouts; countdown wake-ups are longer, at most 60 s.
+  const countdownTimers = () => [...timeouts.values()].filter((timer) => timer.ms > 3_000 && timer.ms <= 60_000);
+  const fire = (timer: { callback: () => void }) => {
+    for (const [id, entry] of timeouts) if (entry === timer) timeouts.delete(id);
+    timer.callback();
+  };
+  try {
+    const pi = {
+      on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
+      registerCommand: () => {},
+      getThinkingLevel: () => "off",
+      exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+      appendEntry: () => {},
+    } as never;
+    const ctx = {
+      cwd: process.cwd(),
+      model: { id: "claude-opus-4-8", provider: "anthropic", reasoning: true },
+      modelRegistry: { isUsingOAuth: () => true, getApiKeyForProvider: async () => undefined },
+      getContextUsage: () => undefined,
+      hasPendingMessages: () => false,
+      sessionManager: { getBranch: () => [] },
+      ui: {
+        setFooter: (factory: any) => {
+          footer = factory?.(
+            { requestRender: () => { renders++; } },
+            { fg: (_: string, text: string) => text, getColorMode: () => "16" },
+            { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
+          );
+        },
+        notify: () => {},
+      },
+    } as never;
+
+    statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
+    await handlers.get("session_start")!({}, ctx);
+    assert.deepEqual(countdownTimers(), [], "no countdown, no wake-up");
+
+    // 60 min 30 s left: the shown "1h1m" drops to "1h" in 30 s, then every 60 s.
+    const resetAt = String((clock + 3_630_000) / 1_000);
+    handlers.get("after_provider_response")!({ headers: {
+      "anthropic-ratelimit-unified-5h-utilization": "0.23",
+      "anthropic-ratelimit-unified-5h-reset": resetAt,
+    } }, ctx);
+    assert.deepEqual(countdownTimers().map((timer) => timer.ms), [30_000]);
+    assert.ok(footer!.render(1_000)[0]!.includes("1h1m"));
+
+    const before = renders;
+    clock += 30_000;
+    fire(countdownTimers()[0]!);
+    assert.equal(renders, before + 1);
+    assert.ok(footer!.render(1_000)[0]!.includes("1h"));
+    assert.deepEqual(countdownTimers().map((timer) => timer.ms), [60_000]);
+
+    footer?.dispose?.();
+    await handlers.get("session_shutdown")?.({}, ctx);
+    assert.deepEqual(countdownTimers(), [], "shutdown clears the wake-up");
+  } finally {
+    Date.now = originalNow;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});
+
 test("arbitrates native and aggregate background terminal progress through the footer terminal", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   const busHandlers = new Map<string, Set<(data: unknown) => void>>();

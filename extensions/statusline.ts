@@ -11,7 +11,7 @@ import {
   type ProgressTerminal,
 } from "../src/agent-activity.ts";
 import { codexAccountScope, CodexDailyUsage, CODEX_QUOTA_HISTORY_DIR } from "../src/codex-daily.ts";
-import { formatResetCountdown } from "../src/format.ts";
+import { msUntilResetCountdownChange } from "../src/format.ts";
 import { parseGitStatus, type GitStatusState } from "../src/git.ts";
 import { parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage, type RateLimits, type RateLimitWindow } from "../src/ratelimit.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
@@ -54,10 +54,9 @@ export default function statusline(
   let gitStatus: GitStatusState | undefined;
   const ANTHROPIC_LIMITS_ENTRY = "pi-statusline:anthropic-limits";
   let requestRender: (() => void) | undefined;
-  let tick: ReturnType<typeof setInterval> | undefined;
+  let tick: ReturnType<typeof setTimeout> | undefined;
   let gitTick: ReturnType<typeof setInterval> | undefined;
   let anthropicRetryTimer: ReturnType<typeof setTimeout> | undefined;
-  let lastRenderedTime = "";
   let sessionActive = false;
   let sessionEpoch = 0;
   const activitySources = new AgentActivitySources();
@@ -77,34 +76,33 @@ export default function statusline(
   const isCurrentSession = (epoch: number) => sessionActive && epoch === sessionEpoch;
   const ANTHROPIC_RETRY_DELAYS_MS = [1_500, 3_000];
 
-  // Reset countdowns are the only ticking content; re-render only when one of them changes.
-  const tickLabel = () => limits.map((limit) =>
-    limit.resetAt === undefined ? "" : formatResetCountdown(limit.resetAt)
-  ).join("|");
-  const hasUpcomingReset = () => limits.some((limit) => limit.resetAt !== undefined && limit.resetAt > Date.now());
-  const stopTick = () => {
-    if (tick) clearInterval(tick);
-    tick = undefined;
-    lastRenderedTime = "";
+  // Reset countdowns are the only ticking content. One timeout is armed for the earliest moment a
+  // shown countdown minute drops (src/format.ts msUntilResetCountdownChange), so the footer wakes
+  // at most once per minute and never while no countdown is upcoming (CPU deep sleep).
+  const nextCountdownChangeMs = () => {
+    const now = Date.now();
+    let next: number | undefined;
+    for (const limit of limits) {
+      const delay = limit.resetAt === undefined ? undefined : msUntilResetCountdownChange(limit.resetAt, now);
+      if (delay !== undefined && (next === undefined || delay < next)) next = delay;
+    }
+    return next;
   };
-  const startTick = () => {
-    stopTick();
-    lastRenderedTime = tickLabel();
-    tick = setInterval(() => {
-      const next = tickLabel();
-      if (next !== lastRenderedTime) {
-        lastRenderedTime = next;
-        requestRender?.();
-      }
-      if (!hasUpcomingReset()) stopTick();
-    }, 1_000);
-    tick.unref?.();
+  const stopTick = () => {
+    if (tick) clearTimeout(tick);
+    tick = undefined;
   };
   const syncTick = () => {
-    // Energy: no interval runs unless a visible reset countdown can change (CPU deep sleep).
-    const shouldTick = sessionActive && settings.enabled && settings.segments.session && hasUpcomingReset();
-    if (shouldTick && !tick) startTick();
-    else if (!shouldTick && tick) stopTick();
+    stopTick();
+    if (!(sessionActive && settings.enabled && settings.segments.session)) return;
+    const delay = nextCountdownChangeMs();
+    if (delay === undefined) return;
+    tick = setTimeout(() => {
+      tick = undefined;
+      requestRender?.();
+      syncTick();
+    }, delay);
+    tick.unref?.();
   };
 
   const disposeProgressMultiplexer = () => {
@@ -436,7 +434,6 @@ export default function statusline(
           // optional fallback keeps the fork loadable on older Pi versions without FooterData.
           liveExtensionStatuses = [...(footerData.getExtensionStatuses?.() ?? new Map<string, string>())]
             .map(([key, value]) => ({ key, value }));
-          lastRenderedTime = tickLabel();
           const line = renderMainLine(settings, {
             cwd: ctx.cwd,
             // Pi already requests a render on session_info_changed; read fresh metadata here.

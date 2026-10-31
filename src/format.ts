@@ -20,3 +20,12 @@ export function formatResetCountdown(resetAt: number, now = Date.now()): string 
   if (hours < 24) return `${hours}h${minutes % 60 ? `${minutes % 60}m` : ""}`;
   return `${Math.floor(hours / 24)}d${hours % 24 ? `${hours % 24}h` : ""}`;
 }
+
+// Milliseconds until formatResetCountdown(resetAt) next changes, or undefined once it reads "now".
+// Its whole-minute ceil drops exactly when resetAt - now reaches a multiple of 60 s, so a timer
+// armed with this delay wakes once per minute in step with the visible text (CPU deep sleep).
+export function msUntilResetCountdownChange(resetAt: number, now = Date.now()): number | undefined {
+  const remaining = resetAt - now;
+  if (!(remaining > 0)) return undefined;
+  return remaining - (Math.ceil(remaining / 60_000) - 1) * 60_000;
+}
