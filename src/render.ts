@@ -292,8 +292,9 @@ export function renderMainLine(
   const context = deriveContext(snap.contextUsage);
   const contextRole = (ctx: { percent: number; tokens: number | null }): ThemeColor => {
     const tokens = ctx.tokens ?? 0;
-    if (ctx.percent >= settings.thresholds.contextCrit || tokens >= 170_000) return "error";
-    if (ctx.percent >= settings.thresholds.contextWarn || tokens >= 120_000) return "warning";
+    // Absolute token steps cover large windows, where the percent thresholds trigger late.
+    if (ctx.percent >= settings.thresholds.contextCrit || tokens >= 400_000) return "error";
+    if (ctx.percent >= settings.thresholds.contextWarn || tokens >= 200_000) return "warning";
     return "success";
   };
   const branch = extras.branch ? snap.gitBranch : undefined;

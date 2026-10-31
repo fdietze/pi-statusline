@@ -457,3 +457,23 @@ test("host names are plain single-line text, stripping ANSI, controls and bidi o
   assert.ok(line.startsWith("ev il 📁 project"), line);
   assert.doesNotMatch(line, /[\x00-\x1f\x7f-\x9f\u202e]/);
 });
+
+test("context turns warning at 200K and error at 400K tokens, or at the percent thresholds", () => {
+  const theme = { fg: (role: string, text: string) => `<${role}>${text}</${role}>` };
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
+  for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
+  settings.segments.context = true;
+  const role = (tokens: number, contextWindow = 1_000_000) => {
+    const percent = (tokens / contextWindow) * 100;
+    const line = renderMainLine(settings, { cwd: "", contextUsage: { tokens, contextWindow, percent } }, 120, theme);
+    return /<(success|warning|error)>/.exec(line)?.[1];
+  };
+  assert.equal(role(199_999), "success");
+  assert.equal(role(200_000), "warning");
+  assert.equal(role(399_999), "warning");
+  assert.equal(role(400_000), "error");
+  // Percent thresholds still apply to small windows.
+  assert.equal(role(160_000, 200_000), "warning");
+  assert.equal(role(190_000, 200_000), "error");
+  assert.equal(role(100_000, 200_000), "success");
+});

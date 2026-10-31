@@ -45,7 +45,7 @@ At full width, segments render in the order below. When the line no longer fits,
 | `model` | on | Active model id |
 | `effort` | on | Thinking level; hidden for non-reasoning models |
 | `extensions` | on | Statuses published through Pi's `ctx.ui.setStatus()`, preserving publisher order and styling |
-| `context` | on | Context percent and window; green below 120K tokens, orange from 120K, red from 170K (75%/90% also warn for smaller windows) |
+| `context` | on | Context percent and window; green below 200K tokens, orange from 200K, red from 400K (the 80%/95% percent thresholds also apply to smaller windows) |
 | `session` | on | Available subscription usage windows and reset countdowns; Codex labels come from the account's current limits |
 | `throughput` | on | Token throughput, adapted to how the model is billed — live `↑/↓` rates, a running `🧾` token/cost ledger, or nothing (see below) |
 | `time` | on | Live-ticking cumulative active agent time (foreground plus compatible background sources) |
