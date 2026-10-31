@@ -11,7 +11,7 @@ import type { StatuslineSettings } from "../src/settings/schema.ts";
 
 const subscriptionCap: ProviderCapability = {
   available: true, authenticated: true, modelCount: 1, billing: "subscription",
-  quotaSupport: "official", quotaReliability: "high", localSpeed: false, hostedSpeed: true, tokenLedger: false, costLedger: false,
+  quotaSupport: "official", quotaReliability: "high",
 };
 
 const anthropicWindows: RateLimitWindow[] = [

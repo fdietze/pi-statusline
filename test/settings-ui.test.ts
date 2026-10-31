@@ -114,13 +114,11 @@ test("dirty Save, Discard, and Cancel preserve state correctly", async () => {
 
 const supportedCapability: ProviderCapability = {
   available: true, authenticated: true, modelCount: 1, billing: "subscription",
-  quotaSupport: "official", quotaReliability: "high", localSpeed: false,
-  hostedSpeed: true, tokenLedger: false, costLedger: false,
+  quotaSupport: "official", quotaReliability: "high",
 };
 const unavailableCapability: ProviderCapability = {
   available: false, authenticated: false, modelCount: 0, billing: "unknown",
-  quotaSupport: "none", quotaReliability: "none", localSpeed: false,
-  hostedSpeed: false, tokenLedger: false, costLedger: false,
+  quotaSupport: "none", quotaReliability: "none",
   unavailableReason: "usage unavailable\u001b[31m",
 };
 const providerContext: ProviderUiContext = {
@@ -194,9 +192,6 @@ test("provider screen is truthful, capability-gated, and integrated without I/O"
     refreshWhileActive: true, refreshDisabledProvider: true,
   });
   assert.equal(detail.refreshNowEligible, true);
-  assert.equal(detail.hostedThroughput, true);
-  assert.equal(detail.localThroughput, false);
-  assert.equal(detail.tokenLedger, false);
   assert.deepEqual(detail.quotaWindows[0].settings, {
     visible: false, label: "Mine", showBar: false, showPercent: false, showReset: true,
     resetFormat: "exact-date", showUsed: false, showRemaining: false, showZero: true, width: 18,
@@ -330,8 +325,8 @@ test("provider detail shows only editable, working controls", () => {
     capabilities: { [id]: capability },
   });
   for (const lines of [
-    renderDetail(contextFor("local", { ...supportedCapability, billing: "local", quotaSupport: "none", quotaReliability: "none", localSpeed: true, hostedSpeed: false })),
-    renderDetail(contextFor("api", { ...supportedCapability, billing: "api", quotaSupport: "none", quotaReliability: "none", tokenLedger: true, costLedger: true })),
+    renderDetail(contextFor("local", { ...supportedCapability, billing: "local", quotaSupport: "none", quotaReliability: "none" })),
+    renderDetail(contextFor("api", { ...supportedCapability, billing: "api", quotaSupport: "none", quotaReliability: "none" })),
   ]) {
     assert.equal(lines.some((line) => /Available|Refresh interval|Use cache|Missing data|Provider icon/.test(line)), false);
     assert.ok(lines.some((line) => line.includes("Reset provider to default")));

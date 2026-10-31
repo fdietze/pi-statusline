@@ -28,10 +28,6 @@ const localFixture: PreviewFixture = Object.freeze({
     billing: "local",
     quotaSupport: "none",
     quotaReliability: "none",
-    localSpeed: true,
-    hostedSpeed: false,
-    tokenLedger: false,
-    costLedger: false,
   } as ProviderCapability),
 });
 
@@ -56,10 +52,6 @@ const subscriptionFixture: PreviewFixture = Object.freeze({
     billing: "subscription",
     quotaSupport: "official",
     quotaReliability: "high",
-    localSpeed: false,
-    hostedSpeed: true,
-    tokenLedger: false,
-    costLedger: false,
   } as ProviderCapability),
 });
 
@@ -81,10 +73,6 @@ const apiFixture: PreviewFixture = Object.freeze({
     billing: "api",
     quotaSupport: "none",
     quotaReliability: "none",
-    localSpeed: false,
-    hostedSpeed: true,
-    tokenLedger: true,
-    costLedger: true,
     unavailableReason: "usage requires an OpenRouter management key pi doesn't manage",
   } as ProviderCapability),
 });

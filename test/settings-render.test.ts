@@ -21,12 +21,10 @@ function settingsWith(overrides: Partial<StatuslineSettings>): StatuslineSetting
 const localCapability: ProviderCapability = {
   available: true, authenticated: true, modelCount: 1, billing: "local",
   quotaSupport: "none", quotaReliability: "none",
-  localSpeed: true, hostedSpeed: false, tokenLedger: false, costLedger: false,
 };
 const subCapability: ProviderCapability = {
   available: true, authenticated: true, modelCount: 1, billing: "subscription",
   quotaSupport: "official", quotaReliability: "high",
-  localSpeed: false, hostedSpeed: true, tokenLedger: false, costLedger: false,
 };
 
 function localRuntime(extra: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {

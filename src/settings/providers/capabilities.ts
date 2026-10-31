@@ -17,14 +17,6 @@ export interface ProviderCapability {
   billing: ProviderBilling;
   quotaSupport: AdapterSupport;
   quotaReliability: QuotaReliability;
-  /** Local inference: configurable local ↑/↓ rates apply. */
-  localSpeed: boolean;
-  /** Hosted inference: configurable hosted streaming ↓ applies while streaming. */
-  hostedSpeed: boolean;
-  /** API token ledger (input/output/cache) from assistant-message usage applies. */
-  tokenLedger: boolean;
-  /** Known session cost ledger applies (never estimates unknown financial cost). */
-  costLedger: boolean;
   /** Sanitized, UI-safe reason when something is unavailable (never a secret/raw error). */
   unavailableReason?: string;
 }
@@ -64,11 +56,6 @@ export function deriveCapability(
   else if (descriptor.available && descriptor.authenticated) billing = "api";
   else billing = "unknown";
 
-  const localSpeed = billing === "local";
-  const hostedSpeed = billing === "subscription" || billing === "api";
-  const tokenLedger = billing === "api";
-  const costLedger = billing === "api";
-
   let unavailableReason: string | undefined;
   if (!descriptor.available) unavailableReason = "provider not available";
   else if (!descriptor.authenticated) unavailableReason = "authentication required";
@@ -81,10 +68,6 @@ export function deriveCapability(
     billing,
     quotaSupport: adapter.support,
     quotaReliability,
-    localSpeed,
-    hostedSpeed,
-    tokenLedger,
-    costLedger,
     ...(unavailableReason ? { unavailableReason } : {}),
   };
 }

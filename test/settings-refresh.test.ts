@@ -16,18 +16,15 @@ function settingsWith(overrides: Partial<StatuslineSettings>): StatuslineSetting
 const officialCap: ProviderCapability = {
   available: true, authenticated: true, modelCount: 1, billing: "subscription",
   quotaSupport: "official", quotaReliability: "high",
-  localSpeed: false, hostedSpeed: true, tokenLedger: false, costLedger: false,
 };
 const unsupportedCap: ProviderCapability = {
   available: true, authenticated: true, modelCount: 1, billing: "api",
   quotaSupport: "none", quotaReliability: "none",
-  localSpeed: false, hostedSpeed: true, tokenLedger: true, costLedger: true,
   unavailableReason: "usage unavailable",
 };
 const unauthCap: ProviderCapability = {
   available: false, authenticated: false, modelCount: 0, billing: "unknown",
   quotaSupport: "official", quotaReliability: "high",
-  localSpeed: false, hostedSpeed: false, tokenLedger: false, costLedger: false,
   unavailableReason: "authentication required",
 };
 

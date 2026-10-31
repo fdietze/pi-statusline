@@ -41,10 +41,6 @@ export interface ProviderDetailView {
   refresh: RefreshPolicy;
   refreshNowEligible: boolean;
   quotaAvailable: boolean;
-  localThroughput: boolean;
-  hostedThroughput: boolean;
-  tokenLedger: boolean;
-  costLedger: boolean;
   quotaWindows: Array<RateLimitWindow & { settings: WindowConfiguration }>;
 }
 
@@ -140,10 +136,6 @@ export function buildProviderDetail(
       isActive: row.active,
     }),
     quotaAvailable: capability.quotaSupport !== "none",
-    localThroughput: capability.localSpeed,
-    hostedThroughput: capability.hostedSpeed,
-    tokenLedger: capability.tokenLedger,
-    costLedger: capability.costLedger,
     quotaWindows,
   };
 }
