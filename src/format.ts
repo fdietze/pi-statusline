@@ -4,10 +4,6 @@ export function formatWindow(value: number): string {
   return `${Math.round(value)}`;
 }
 
-export function formatPercent(fraction: number): string {
-  return `${(fraction * 100).toFixed(1)}%`;
-}
-
 export function formatContextPercent(percent: number): string {
   return `${percent.toFixed(1)}%`;
 }
