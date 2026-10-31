@@ -77,8 +77,8 @@ export default function statusline(
   const ANTHROPIC_RETRY_DELAYS_MS = [1_500, 3_000];
 
   // Reset countdowns are the only ticking content. One timeout is armed for the earliest moment a
-  // shown countdown minute drops (src/format.ts msUntilResetCountdownChange), so the footer wakes
-  // at most once per minute and never while no countdown is upcoming (CPU deep sleep).
+  // shown countdown text changes (src/format.ts msUntilResetCountdownChange), so the footer wakes
+  // only for visible changes and never while no countdown is upcoming (CPU deep sleep).
   const nextCountdownChangeMs = () => {
     const now = Date.now();
     let next: number | undefined;

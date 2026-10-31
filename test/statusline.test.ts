@@ -61,7 +61,7 @@ test("runs no one-second timer without reset countdowns and stops polling on dis
   }
 });
 
-test("wakes once per shown countdown minute and never while no countdown is upcoming", async () => {
+test("wakes when the shown countdown changes and never while no countdown is upcoming", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
   let clock = 1_800_000_000_000;
@@ -80,7 +80,7 @@ test("wakes once per shown countdown minute and never while no countdown is upco
   globalThis.clearTimeout = ((id: ReturnType<typeof setTimeout>) => {
     timeouts.delete(id as unknown as number);
   }) as typeof clearTimeout;
-  // Anthropic limit retries use 1.5 s / 3 s timeouts; countdown wake-ups are longer, at most 60 s.
+  // Anthropic limit retries use 1.5 s / 3 s timeouts; countdown wake-ups below one day are longer, at most 60 s.
   const countdownTimers = () => [...timeouts.values()].filter((timer) => timer.ms > 3_000 && timer.ms <= 60_000);
   const fire = (timer: { callback: () => void }) => {
     for (const [id, entry] of timeouts) if (entry === timer) timeouts.delete(id);
