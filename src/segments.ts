@@ -3,7 +3,6 @@ import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 export const SEGMENT_ORDER = [
   "project",
   "model",
-  "effort",
   "extensions",
   "context",
   "session",
@@ -26,7 +25,7 @@ export function createSegments(
   return SEGMENT_ORDER.map((id) => ({ id, enabled: enabled[id], render: renderers[id] }));
 }
 
-const COMPACT_ORDER: SegmentId[] = ["context", "extensions", "session", "model", "effort", "project", "throughput", "time"];
+const COMPACT_ORDER: SegmentId[] = ["context", "extensions", "session", "model", "project", "throughput", "time"];
 const DROP_ORDER = COMPACT_ORDER.slice(1).reverse();
 
 export function composeSegments(

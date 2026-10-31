@@ -40,7 +40,7 @@ test("defaults: narrowPriority drops low-priority segments first, retains contex
   const narrowPriority = DEFAULT_STATUSLINE_SETTINGS.layout.narrowPriority;
   // Current behavior drops ordinary segments first, extension statuses last, and retains context.
   // context is retained (never dropped) so it is NOT in narrowPriority.
-  assert.deepEqual([...narrowPriority], ["time", "throughput", "project", "effort", "model", "session", "extensions"]);
+  assert.deepEqual([...narrowPriority], ["time", "throughput", "project", "model", "session", "extensions"]);
   assert.equal(narrowPriority.includes("context"), false, "context must be retained, never dropped");
 });
 
@@ -79,7 +79,7 @@ test("defaults: createProviderConfig returns fresh config", () => {
   assert.equal(config1.enabled, true);
   assert.equal(config1.displayMode, "default");
   assert.deepEqual(config1.windows, {});
-  assert.equal(config1.supportedOverrides.length, 8);
+  assert.equal(config1.supportedOverrides.length, 7);
 });
 
 test("defaults: createWindowConfig returns fresh config", () => {

@@ -129,7 +129,7 @@ export function migrateLegacySettings(legacy: unknown): Partial<StatuslineSettin
     placement: "below",
     maxWidth: 0,
     segmentOrder: SEGMENT_ORDER.map((id) => id),
-    narrowPriority: ["time", "throughput", "project", "effort", "model", "session", "extensions"] as SegmentId[],
+    narrowPriority: ["time", "throughput", "project", "model", "session", "extensions"] as SegmentId[],
     rightAlignedExtensionStatuses: ["mcp"],
   };
 

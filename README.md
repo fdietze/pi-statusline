@@ -5,9 +5,9 @@ A personal fork of [futile/pi-statusline](https://github.com/futile/pi-statuslin
 A configurable, single-line footer for [pi](https://github.com/earendil-works/pi-mono). It uses the active pi theme for semantic colors, shows only the data available for the active model and provider, includes statuses published by other extensions, and drops lower-priority segments before truncating at narrow widths.
 
 ```text
-📁 pi-statusline  main ✓ > 🤖 qwen36-coder > 🧠 medium > 🪟  55.0%/1.0M > ⚡↑1.2k ↓74 t/s > ⏳ 12m34s
-📁 pi-statusline  main ↑2 > 🤖 claude-sonnet-5 > 🧠 high > FAST > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h > ⏳ 8m02s
-📁 pi-statusline  main ✓ > 🤖 gpt-5 > 🧠 high > 🪟  12.0%/400K > 🧾 ↑128K ↓34K $0.512 > ⏳ 3m20s
+📁 pi-statusline  main ✓ > 🤖 qwen36-coder@medium > 🪟  55.0%/1.0M > ⚡↑1.2k ↓74 t/s > ⏳ 12m34s
+📁 pi-statusline  main ↑2 > 🤖 claude-sonnet-5@high > FAST > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h > ⏳ 8m02s
+📁 pi-statusline  main ✓ > 🤖 gpt-5@high > 🪟  12.0%/400K > 🧾 ↑128K ↓34K $0.512 > ⏳ 3m20s
 anthropic 5h ╺━━━━━━━━━━╸ 100% ↻1h44m >wk ╺──────────╴ 12% ↻6d5h
 openai-codex wk ╺━━━━──────╴ 38% ↻4d14h ≈3pp over
 zai 5h ╶──────────╴ 0% >wk ╺──────────╴ 5% ↻2d19h
@@ -42,8 +42,7 @@ At full width, segments render in the order below. When the line no longer fits,
 | Segment | Default | Contents |
 |---|---:|---|
 | `project` | on | Current directory name and compact Git HUD |
-| `model` | on | Active model id |
-| `effort` | on | Thinking level; hidden for non-reasoning models |
+| `model` | on | Active model id and thinking level as `model@effort`; non-reasoning models show only the id |
 | `extensions` | on | Statuses published through Pi's `ctx.ui.setStatus()`, preserving publisher order and styling |
 | `context` | on | Context percent and window; green below 200K tokens, orange from 200K, red from 400K (the 80%/95% percent thresholds also apply to smaller windows) |
 | `session` | on | Available subscription usage windows and reset countdowns; Codex labels come from the account's current limits |
@@ -56,7 +55,7 @@ Extension statuses are read from Pi's footer data on every render, so a `ctx.ui.
 
 Status keys listed in `layout.rightAlignedExtensionStatuses` are removed from the ordinary extension segment and placed at the far right only when the complete left side leaves enough spare width. They render in configured order with the main separator; when the full cluster is too wide, values drop from the left so the rightmost keys survive. The default `["mcp"]` renders `🔌 MCP N/N`. The MCP glyph follows the global icon style and can be overridden with `icons.symbols.mcp`; statuses such as Fast remain inline. Set the list to `[]` to keep every extension status inline.
 
-The keyed `fast` status has a small presentation adapter: its publisher supplies plain `fast`, while the default emoji and Nerd Font styles render `⚡ fast` inline after the effort segment with the text in the theme's warning color. Override the glyph with `icons.symbols.fast`; other status keys remain generic and publisher-styled.
+The keyed `fast` status has a small presentation adapter: its publisher supplies plain `fast`, while the default emoji and Nerd Font styles render `⚡ fast` inline after the model segment with the text in the theme's warning color. Override the glyph with `icons.symbols.fast`; other status keys remain generic and publisher-styled.
 
 Icons default to the **emoji** style. The **Icons** section of `/statusline` switches the whole line to Nerd Font, Unicode, ASCII, minimal, or none (ASCII and none are safe fallbacks for terminals without glyph support), and overrides the symbols the footer actually renders plus provider icons. Optional extras default off: `cost` (appends session `$cost` to the model segment), `sessionElapsed`, `lastTurn`, and `pending` — all toggleable in **Display**.
 
@@ -88,7 +87,7 @@ Fresh selected providers render in that saved order beneath the active-session l
 
 | Data | Local models | Anthropic subscription | OpenAI Codex subscription | Other cloud/API key |
 |---|:---:|:---:|:---:|:---:|
-| Project, model, effort, context | ✓ | ✓ | ✓ | ✓ |
+| Project, model@effort, context | ✓ | ✓ | ✓ | ✓ |
 | Available usage bars | — | ✓ | ✓ | — |
 | Live token rates (`↑/↓`) | ✓ | — | — | — |
 | Token totals + session cost | — | — | — | ✓ |

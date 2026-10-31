@@ -41,12 +41,6 @@ function localRuntime(extra: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {
   };
 }
 
-test("resolution: effort self-hides for non-reasoning models", () => {
-  const ctx: ResolutionContext = { capability: localCapability, runtime: localRuntime({ model: { id: "x", reasoning: false }, thinkingLevel: "off" }) };
-  const vis = resolveSegmentVisibility(DEFAULT_STATUSLINE_SETTINGS, ctx);
-  assert.equal(vis.effort, false, "non-reasoning model must not show effort");
-});
-
 test("resolution: context self-hides when percent is null (post-compaction)", () => {
   const ctx: ResolutionContext = { capability: localCapability, runtime: localRuntime({ contextUsage: { percent: null as unknown as number, tokens: null, contextWindow: 200_000 } }) };
   const vis = resolveSegmentVisibility(DEFAULT_STATUSLINE_SETTINGS, ctx);
@@ -75,14 +69,14 @@ test("resolution: activeModel tri-state 'off' overrides global on", () => {
       records: {
         ollama: {
           enabled: true, displayMode: "default", windows: {},
-          activeModel: { effort: "off" } as Record<SegmentId, ActiveModelToggle>,
+          activeModel: { model: "off" } as Record<SegmentId, ActiveModelToggle>,
           supportedOverrides: [],
         },
       },
     },
   });
   const ctx: ResolutionContext = { capability: localCapability, runtime: localRuntime() };
-  assert.equal(resolveSegmentVisibility(s, ctx).effort, false);
+  assert.equal(resolveSegmentVisibility(s, ctx).model, false);
 });
 
 test("resolution: activeModel tri-state 'on' overrides global off", () => {
@@ -111,9 +105,9 @@ test("resolution: 'default' inherits global", () => {
 });
 
 test("resolution: order validates and falls back to defaults when empty/invalid", () => {
-  assert.deepEqual(resolveOrder(DEFAULT_STATUSLINE_SETTINGS).segmentOrder, ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual(resolveOrder(DEFAULT_STATUSLINE_SETTINGS).segmentOrder, ["project", "model", "extensions", "context", "session", "throughput", "time"]);
   const bad = settingsWith({ layout: { ...DEFAULT_STATUSLINE_SETTINGS.layout, segmentOrder: ["bogus" as SegmentId] } });
-  assert.deepEqual(resolveOrder(bad).segmentOrder, ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual(resolveOrder(bad).segmentOrder, ["project", "model", "extensions", "context", "session", "throughput", "time"]);
 });
 
 test("resolution: resolveBarConfig passes through and bounds bar settings", () => {
@@ -237,11 +231,11 @@ test("resolution: icon style ascii emits letter codes; none produces no symbol p
   const ascii = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
   ascii.icons.style = "ascii";
   const asciiLine = composeFooterLine(ascii, ctx, 200);
-  // ascii preset: project='P', model='M', thinking='T', context='C', throughput='R'. Each icon is
+  // ascii preset: project='P', model='M', context='C', throughput='R'. Each icon is
   // followed by a space (matching the live footer's `📁 project` spacing).
   assert.ok(asciiLine.includes("P project"), `ascii: expected 'P project' icon+label, got: ${asciiLine}`);
   assert.ok(asciiLine.startsWith("P "), `ascii: expected project 'P' icon, got: ${asciiLine}`);
-  assert.ok(asciiLine.includes("T medium"), `ascii: expected thinking 'T' icon, got: ${asciiLine}`);
+  assert.ok(asciiLine.includes("M qwen2.5-coder@medium"), `ascii: expected model 'M' icon, got: ${asciiLine}`);
 
   const none = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
   none.icons.style = "none";

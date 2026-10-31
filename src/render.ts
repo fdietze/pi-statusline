@@ -107,11 +107,11 @@ const GIT_ROLES: Record<GitTokenKind, "accent" | "success" | "warning" | "error"
 };
 
 const ICON_PRESETS: Record<StatuslineSettings["icons"]["style"], Record<string, string>> = {
-  emoji: { project: "📁", model: "🤖", thinking: "🧠", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌", fast: "⚡" },
-  unicode: { project: "◆", model: "◇", thinking: "◌", context: "▣", throughput: "↕", time: "◷" },
-  ascii: { project: "P", model: "M", thinking: "T", context: "C", throughput: "R", time: "@" },
-  nerdfont: { project: "󰉋", model: "󰧑", thinking: "󰔟", context: "󰍛", throughput: "󰓅", time: "󰥔", fast: "⚡" },
-  minimal: { project: "·", model: "·", thinking: "·", context: "·", throughput: "·", time: "·" },
+  emoji: { project: "📁", model: "🤖", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌", fast: "⚡" },
+  unicode: { project: "◆", model: "◇", context: "▣", throughput: "↕", time: "◷" },
+  ascii: { project: "P", model: "M", context: "C", throughput: "R", time: "@" },
+  nerdfont: { project: "󰉋", model: "󰧑", context: "󰍛", throughput: "󰓅", time: "󰥔", fast: "⚡" },
+  minimal: { project: "·", model: "·", context: "·", throughput: "·", time: "·" },
   none: {},
   custom: {},
 };
@@ -391,10 +391,11 @@ export function renderMainLine(
     model: () => {
       if (!model) return "";
       const provider = providerIcon(settings, snap.model?.provider);
-      const label = provider ? `${provider}${model}` : model;
+      // One segment reads as `model@effort`; hidden effort (see deriveEffort) drops the suffix.
+      const name = effort ? `${model}@${effort}` : model;
+      const label = provider ? `${provider}${name}` : name;
       return paint("muted", `${withSpace("model", label)}${cost === undefined ? "" : ` $${cost.toFixed(3)}`}`);
     },
-    effort: () => effort ? paint("muted", withSpace("thinking", effort)) : "",
     // Status values can carry extension-provided ANSI styling; preserve them verbatim.
     extensions: () => extensionStatuses,
     context: () => {

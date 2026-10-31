@@ -75,14 +75,13 @@ test("migration: legacy footerEnabled+segments+extras+providerTracking maps to n
     lastTurn: false,
     pending: true,
   });
-  assert.deepEqual(migrated.layout?.segmentOrder, ["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual(migrated.layout?.segmentOrder, ["project", "model", "extensions", "context", "session", "throughput", "time"]);
   assert.deepEqual(migrated.layout?.rightAlignedExtensionStatuses, ["mcp"]);
 
   // Segments
   assert.ok(migrated.segments);
   assert.equal(migrated.segments?.project, true);
   assert.equal(migrated.segments?.model, false);
-  assert.equal(migrated.segments?.effort, true);
   assert.equal(migrated.segments?.extensions, true);
   assert.equal(migrated.segments?.context, true);
   assert.equal(migrated.segments?.session, false);

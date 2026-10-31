@@ -278,11 +278,11 @@ test("version 1 settings drop migrated statuses atomically at narrow widths", ()
   assert.equal(line.includes("FA"), false, `status must drop as a segment, not truncate: ${line}`);
 });
 
-test("Fast status is inline after effort with a Nerd glyph and warning-colored text", () => {
+test("Fast status is inline after model@effort with a Nerd glyph and warning-colored text", () => {
   const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
   settings.providers.enabled = false;
   for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
-  settings.segments.effort = true;
+  settings.segments.model = true;
   settings.segments.extensions = true;
   settings.segments.context = true;
   settings.icons.symbols.fast = "󱐋";
@@ -302,7 +302,7 @@ test("Fast status is inline after effort with a Nerd glyph and warning-colored t
     ],
   }, 200, theme);
 
-  assert.match(line, /<muted>🧠 high<\/muted><dim> > <\/dim>REVIEW 󱐋 <warning>fast<\/warning><dim> > <\/dim>/);
+  assert.match(line, /<muted>🤖 gpt-5\.6-sol@high<\/muted><dim> > <\/dim>REVIEW 󱐋 <warning>fast<\/warning><dim> > <\/dim>/);
   assert.ok(line.endsWith("🔌 MCP 0/3"), line);
   assert.equal((line.match(/󱐋/g) ?? []).length, 1, line);
   assert.equal((line.match(/🔌/g) ?? []).length, 1, line);
@@ -320,7 +320,7 @@ test("default separator leaves space before each following emoji segment", () =>
   }, 200);
 
   assert.ok(line.includes("nixos > main"), line);
-  for (const glyph of ["🤖", "🧠", "🪟", "⏳"]) {
+  for (const glyph of ["🤖", "🪟", "⏳"]) {
     assert.ok(line.includes(` > ${glyph}`), `missing separator space before ${glyph}: ${line}`);
     assert.equal(line.includes(`>${glyph}`), false, `separator touches ${glyph}: ${line}`);
   }
@@ -354,7 +354,7 @@ test("configured separator spacing and narrow drop priority affect the line", ()
   settings.separators.padding = "~";
   settings.separators.spacingBefore = 1;
   settings.separators.spacingAfter = 2;
-  settings.layout.narrowPriority = ["context", "time", "throughput", "session", "effort", "model", "project"];
+  settings.layout.narrowPriority = ["context", "time", "throughput", "session", "model", "project"];
   const snapshot = {
     cwd: "/tmp/project",
     model: { id: "claude", provider: "anthropic", reasoning: true },
@@ -476,4 +476,15 @@ test("context turns warning at 200K and error at 400K tokens, or at the percent 
   assert.equal(role(160_000, 200_000), "warning");
   assert.equal(role(190_000, 200_000), "error");
   assert.equal(role(100_000, 200_000), "success");
+});
+
+test("model segment reads model@effort and drops the suffix when effort is hidden", () => {
+  const settings = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
+  for (const id of Object.keys(settings.segments)) settings.segments[id as keyof typeof settings.segments] = false;
+  settings.segments.model = true;
+  const line = (model: { id: string; reasoning: boolean }, thinkingLevel: string) =>
+    renderMainLine(settings, { cwd: "", model, thinkingLevel }, 80).trim();
+  assert.equal(line({ id: "claude-sonnet-5-5", reasoning: true }, "high"), "🤖 claude-sonnet-5-5@high");
+  assert.equal(line({ id: "claude-sonnet-5-5", reasoning: true }, "off"), "🤖 claude-sonnet-5-5@off");
+  assert.equal(line({ id: "qwen", reasoning: false }, "off"), "🤖 qwen");
 });

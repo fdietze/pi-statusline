@@ -5,6 +5,7 @@ import type { StatuslineSettings } from "./schema.ts";
 import { parseStatuslineSettings } from "./validation.ts";
 import { DEFAULT_STATUSLINE_SETTINGS, createProviderConfig, createWindowConfig } from "./defaults.ts";
 import { migrateLegacySettings } from "./migrations.ts";
+import { SEGMENT_ORDER } from "../segments.ts";
 
 /** Default on-disk settings path (legacy location, preserved for migration continuity). */
 export const DEFAULT_STATUSLINE_CONFIG_PATH = join(homedir(), ".pi", "agent", "statusline.json");
@@ -76,7 +77,7 @@ export function reconcileProviders(settings: StatuslineSettings, registry: Avail
 }
 
 /** Names the /statusline toggle command accepts (segments + legacy extras, with aliases). */
-const SEGMENT_TOGGLE_NAMES = new Set<string>(["project", "model", "effort", "extensions", "context", "session", "throughput", "time"]);
+const SEGMENT_TOGGLE_NAMES = new Set<string>(SEGMENT_ORDER);
 const TOGGLE_ALIASES: Record<string, string> = {
   "session-bars": "session",
   elapsed: "sessionElapsed",
@@ -107,7 +108,7 @@ export function applyToggle(settings: StatuslineSettings, rawName: string): Stat
 export function formatStatusSummary(settings: StatuslineSettings): string {
   const rows: Array<[string, boolean]> = [
     ["footer", settings.enabled],
-    ...(["project", "model", "effort", "extensions", "context", "session", "throughput", "time"] as const).map((s) => [s, settings.segments[s]] as [string, boolean]),
+    ...SEGMENT_ORDER.map((s) => [s, settings.segments[s]] as [string, boolean]),
     ...(["branch", "cost", "sessionElapsed", "lastTurn", "pending"] as const).map((e) => [e, settings.extras[e]] as [string, boolean]),
     ["nerdFont", settings.icons.style === "nerdfont"],
   ];

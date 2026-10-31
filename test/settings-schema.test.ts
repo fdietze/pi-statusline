@@ -132,7 +132,6 @@ test("schema: activeModel three-state values", () => {
   providerConfig.activeModel = {
     project: "on",
     model: "off",
-    effort: "default",
     extensions: "default",
     context: "default",
     session: "on",
@@ -163,7 +162,7 @@ test("schema: activeModel three-state values", () => {
   const activeModel = result.settings.providers.records["test-provider"].activeModel;
   assert.equal(activeModel.project, "on");
   assert.equal(activeModel.model, "off");
-  assert.equal(activeModel.effort, "default");
+  assert.equal(activeModel.context, "default");
 });
 
 test("schema: displayMode default vs custom", () => {

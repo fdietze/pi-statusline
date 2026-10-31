@@ -40,7 +40,6 @@ export const DEFAULT_SETTINGS: Settings = {
   segments: {
     project: true,
     model: true,
-    effort: true,
     extensions: true,
     context: true,
     session: true,

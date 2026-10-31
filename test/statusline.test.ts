@@ -443,7 +443,7 @@ test("renders emoji segments with themed semantic colors", async () => {
     "x-codex-secondary-reset-at": resetAt,
   } }, ctx);
   const line = footer!.render(1_000)[0]!;
-  for (const icon of ["📁", "🤖", "🧠", "🪟", "⏳"]) assert.ok(line.includes(icon));
+  for (const icon of ["📁", "🤖", "🪟", "⏳"]) assert.ok(line.includes(icon));
   assert.ok(line.includes("1h"));
   assert.ok(line.includes("wk"));
   assert.equal(line.includes("5h"), false);

@@ -52,9 +52,6 @@ export interface ResolutionContext {
 function isApplicable(id: SegmentId, ctx: ResolutionContext): boolean {
   const { runtime, capability } = ctx;
   switch (id) {
-    case "effort":
-      // Non-reasoning models have no effort level to show.
-      return runtime.model?.reasoning === true;
     case "extensions":
       return Boolean(runtime.extensionStatuses?.some(({ value }) => value.length > 0));
     case "context":
