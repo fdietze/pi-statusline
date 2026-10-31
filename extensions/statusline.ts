@@ -11,14 +11,12 @@ import {
   type ProgressTerminal,
 } from "../src/agent-activity.ts";
 import { codexAccountScope, CodexDailyUsage, CODEX_QUOTA_HISTORY_DIR } from "../src/codex-daily.ts";
-import { billingMode, isLocalEndpoint } from "../src/derive.ts";
-import { formatResetCountdown, formatTime } from "../src/format.ts";
+import { formatResetCountdown } from "../src/format.ts";
 import { parseGitStatus, type GitStatusState } from "../src/git.ts";
 import { parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage, type RateLimits, type RateLimitWindow } from "../src/ratelimit.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
 import { ProviderRefreshCoordinator, RateLimitedError, type ProviderAdapter } from "../src/providers.ts";
 import { renderMainLine, renderProviderRows, providerHasRow, type ExtensionStatus, type ProviderRowSource } from "../src/render.ts";
-import { estimateTokens, sumTextLength, TurnMeter } from "../src/throughput.ts";
 import {
   DEFAULT_STATUSLINE_CONFIG_PATH,
   configuredProviders,
@@ -52,7 +50,6 @@ export default function statusline(
   ),
 ) {
   let settings: StatuslineSettings = loadRuntimeSettings(settingsPath);
-  let meter = new TurnMeter();
   let limits: RateLimits = [];
   let gitStatus: GitStatusState | undefined;
   const ANTHROPIC_LIMITS_ENTRY = "pi-statusline:anthropic-limits";
@@ -60,12 +57,9 @@ export default function statusline(
   let tick: ReturnType<typeof setInterval> | undefined;
   let gitTick: ReturnType<typeof setInterval> | undefined;
   let anthropicRetryTimer: ReturnType<typeof setTimeout> | undefined;
-  let lastContextChars = 0;
   let lastRenderedTime = "";
   let sessionActive = false;
   let sessionEpoch = 0;
-  let turnActive = false;
-  let backgroundActive = false;
   const activitySources = new AgentActivitySources();
   let progressTerminal: ProgressTerminal | undefined;
   let progressMultiplexer: TerminalProgressMultiplexer | undefined;
@@ -83,20 +77,10 @@ export default function statusline(
   const isCurrentSession = (epoch: number) => sessionActive && epoch === sessionEpoch;
   const ANTHROPIC_RETRY_DELAYS_MS = [1_500, 3_000];
 
-  const timeLabel = () => {
-    const snapshot = meter.snapshot();
-    const liveMs = meter.liveActiveMs();
-    return snapshot.activeMs === 0 && liveMs === 0 && snapshot.lastTurnMs === undefined
-      ? ""
-      : formatTime(
-        snapshot.activeMs + liveMs,
-        settings.extras.sessionElapsed ? snapshot.elapsedMs : undefined,
-        settings.extras.lastTurn ? snapshot.lastTurnMs : undefined,
-      );
-  };
-  const tickLabel = (time = timeLabel()) => `${time}|${limits.map((limit) =>
+  // Reset countdowns are the only ticking content; re-render only when one of them changes.
+  const tickLabel = () => limits.map((limit) =>
     limit.resetAt === undefined ? "" : formatResetCountdown(limit.resetAt)
-  ).join("|")}`;
+  ).join("|");
   const hasUpcomingReset = () => limits.some((limit) => limit.resetAt !== undefined && limit.resetAt > Date.now());
   const stopTick = () => {
     if (tick) clearInterval(tick);
@@ -112,26 +96,17 @@ export default function statusline(
         lastRenderedTime = next;
         requestRender?.();
       }
-      const workNeedsTick = (settings.segments.time && (turnActive || backgroundActive))
-        || (settings.segments.throughput && turnActive);
-      if (!workNeedsTick && !hasUpcomingReset()) stopTick();
+      if (!hasUpcomingReset()) stopTick();
     }, 1_000);
     tick.unref?.();
   };
   const syncTick = () => {
-    const shouldTick = sessionActive && settings.enabled
-      && ((settings.segments.time && (turnActive || backgroundActive))
-        || (settings.segments.throughput && turnActive)
-        || (settings.segments.session && hasUpcomingReset()));
+    // Energy: no interval runs unless a visible reset countdown can change (CPU deep sleep).
+    const shouldTick = sessionActive && settings.enabled && settings.segments.session && hasUpcomingReset();
     if (shouldTick && !tick) startTick();
     else if (!shouldTick && tick) stopTick();
   };
 
-  const syncAggregateActivity = (at?: number) => {
-    meter.setActive(turnActive || backgroundActive, at);
-    syncTick();
-    requestRender?.();
-  };
   const disposeProgressMultiplexer = () => {
     progressMultiplexer?.dispose();
     progressMultiplexer = undefined;
@@ -151,10 +126,7 @@ export default function statusline(
   const extensionEvents = (pi as unknown as { events?: ExtensionEventBus }).events;
   extensionEvents?.on(AGENT_ACTIVITY_UPDATE_EVENT, (data) => {
     if (!activitySources.update(data)) return;
-    const aggregate = activitySources.snapshot();
-    backgroundActive = aggregate.active;
-    progressMultiplexer?.setExternal(aggregate.terminalProgress);
-    syncAggregateActivity();
+    progressMultiplexer?.setExternal(activitySources.snapshot().terminalProgress);
   });
 
   const refreshGit = async (ctx: ExtensionContext, epoch = sessionEpoch) => {
@@ -434,14 +406,8 @@ export default function statusline(
           const edge = width >= 2 ? " " : "";
           const contentWidth = width - edge.length * 2;
           const provider = ctx.model?.provider;
-          const subscription = ctx.model !== undefined
-            && (ctx.model.provider === "openai-codex" || ctx.modelRegistry.isUsingOAuth(ctx.model));
-          const mode = billingMode(isLocalEndpoint(ctx.model?.baseUrl), subscription);
-          // Walk the branch for totals only when something actually shows them (opt-in cost, or the
-          // API token ledger while idle), not on every render tick.
-          const needTotals = settings.extras.cost || (mode === "api" && !turnActive);
-          const totals = needTotals ? sessionTotals(ctx) : undefined;
-          const snapshot = meter.snapshot();
+          // Walk the branch for totals only when the opt-in cost extra shows them.
+          const totals = settings.extras.cost ? sessionTotals(ctx) : undefined;
           // Provider-tracking rows share the settings-preview renderer (renderProviderRows) so the
           // multi-line footer and the in-app preview can never drift. Sources are built here from
           // live refresh health; per-window display (visible/bar/percent/reset/label/width) is read
@@ -485,10 +451,6 @@ export default function statusline(
               : footerData.getGitBranch()),
             gitStatus,
             pending: ctx.hasPendingMessages(),
-            subscription,
-            turnActive,
-            meter: { ...snapshot, activeMs: snapshot.activeMs + meter.liveActiveMs() },
-            lastContextChars,
             totals,
             sessionWindows: provider === "openai-codex" ? codexDailyUsage.decorate(limits) : limits,
             activeProviderHasRow,
@@ -577,18 +539,13 @@ export default function statusline(
     const providers = buildProviderContext(ctx);
     const previewCapability = ctx.model?.provider ? providers.capabilities[ctx.model.provider] : undefined;
     // Live snapshot of the current session, fed to the in-app preview so it shows exactly what the
-    // footer will look like under the DRAFT settings (cwd, model, context, quota, ticking clock).
-    // Reads the draft (not the committed settings) so toggling extras like cost / session-elapsed /
-    // last-turn is visible before saving — the preview is a live reflection of the draft.
+    // footer will look like under the DRAFT settings (cwd, model, context, quota, reset countdowns).
+    // Reads the draft (not the committed settings) so toggling extras like cost / branch /
+    // pending is visible before saving — the preview is a live reflection of the draft.
     const currentPreviewContext = (draft: StatuslineSettings): ResolutionContext => {
-      const snapshot = meter.snapshot();
-      const subscription = ctx.model !== undefined
-        && (ctx.model.provider === "openai-codex" || ctx.modelRegistry.isUsingOAuth(ctx.model));
-      const mode = billingMode(isLocalEndpoint(ctx.model?.baseUrl), subscription);
       // Mirror the footer's own render inputs so the "current" preview is byte-identical to the
-      // live main line under the draft settings (git HUD, ledger, quota, ticking clock, theme).
-      const needTotals = draft.extras.cost || (mode === "api" && !turnActive);
-      const totals = needTotals ? sessionTotals(ctx) : undefined;
+      // live main line under the draft settings (git HUD, cost, quota, theme).
+      const totals = draft.extras.cost ? sessionTotals(ctx) : undefined;
       return {
         capability: previewCapability,
         runtime: {
@@ -600,22 +557,15 @@ export default function statusline(
           thinkingLevel: pi.getThinkingLevel(),
           contextUsage: ctx.getContextUsage() ?? undefined,
           extensionStatuses: liveExtensionStatuses,
-          throughput: { inputRate: snapshot.avgInputRate, outputRate: snapshot.avgOutputRate },
           sessionWindows: limits,
-          activeMs: snapshot.activeMs + meter.liveActiveMs(),
-          elapsedMs: draft.extras.sessionElapsed ? snapshot.elapsedMs : undefined,
-          lastTurnMs: draft.extras.lastTurn ? snapshot.lastTurnMs : undefined,
           gitBranch: liveGitBranch,
           gitStatus,
           pending: ctx.hasPendingMessages(),
-          subscription,
-          turnActive,
-          lastContextChars,
           totals,
         },
       };
     };
-    // The live footer would duplicate the preview's clock; hide it while settings are open so there
+    // The live footer would duplicate the preview; hide it while settings are open so there
     // is exactly one statusline on screen — the interactive preview. Restored on close.
     const footerWasEnabled = settings.enabled;
     settingsOverlayOpen = true;
@@ -623,7 +573,7 @@ export default function statusline(
     return ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
       let state = createSettingsUi(settings);
       let finished = false;
-      // Re-render every second so the preview's clock ticks live (the footer's own tick is gone).
+      // Re-render every second while the overlay is open so the preview's reset countdowns stay live.
       const previewTick = setInterval(() => tui.requestRender(), 1_000);
       previewTick.unref?.();
       const finish = () => {
@@ -689,8 +639,6 @@ export default function statusline(
   pi.on("session_start", async (_event, ctx) => {
     const epoch = ++sessionEpoch;
     sessionActive = true;
-    turnActive = false;
-    backgroundActive = false;
     activitySources.clear();
     codexAccountGeneration++;
     codexCacheScope = undefined;
@@ -706,7 +654,6 @@ export default function statusline(
       if (!isCurrentSession(epoch)) return;
       if (credentials) selectCodexAccount(credentials, ctx.model?.provider === "openai-codex");
     }
-    meter = new TurnMeter();
     limits = isAnthropicOAuth(ctx) ? restoreAnthropicLimits(ctx) : [];
     if (!limits.length) {
       const provider = ctx.model?.provider ?? "";
@@ -755,11 +702,8 @@ export default function statusline(
   });
 
   pi.on("session_shutdown", () => {
-    meter.setActive(false);
     sessionActive = false;
     sessionEpoch++;
-    turnActive = false;
-    backgroundActive = false;
     activitySources.clear();
     progressMultiplexer?.setExternal(false);
     disposeProgressMultiplexer();
@@ -770,45 +714,10 @@ export default function statusline(
     liveExtensionStatuses = [];
   });
 
-  pi.on("turn_start", (event) => {
-    turnActive = true;
-    meter.startTurn(event.timestamp);
-    syncAggregateActivity(event.timestamp);
-  });
-
-  pi.on("message_update", (event) => {
-    if (event.message.role !== "assistant") return;
-    meter.markFirstUpdate();
-    meter.updateOutputChars(sumTextLength(event.message.content));
-    requestRender?.();
-  });
-
-  pi.on("message_end", (event) => {
-    if (event.message.role === "assistant") meter.markMessageEnd();
-  });
-
-  pi.on("context", (event) => {
-    lastContextChars = sumTextLength(event.messages);
-  });
-
-  pi.on("turn_end", async (event, ctx) => {
-    turnActive = false;
-    if (event.message.role === "assistant") {
-      const { usage, content } = event.message;
-      const input = usage.input || estimateTokens(lastContextChars);
-      const output = usage.output || estimateTokens(sumTextLength(content));
-      meter.finishTurn({ input, output });
-    }
-    syncAggregateActivity();
+  pi.on("turn_end", async (_event, ctx) => {
     void refreshCodexLimits(ctx);
     await refreshGit(ctx);
     requestRender?.();
-  });
-
-  pi.on("agent_settled", () => {
-    turnActive = false;
-    meter.finalizeActiveTurn();
-    syncAggregateActivity();
   });
 
   pi.on("before_provider_request", async (_event, ctx) => {
@@ -848,7 +757,6 @@ export default function statusline(
     codexProviderRequestEpoch++;
     codexProviderRequestScope = undefined;
     limits = isAnthropicOAuth(ctx) ? restoreAnthropicLimits(ctx) : [];
-    meter.resetThroughput();
     syncTick();
     requestRender?.();
     stopAnthropicRetry();

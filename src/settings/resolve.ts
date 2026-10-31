@@ -24,22 +24,15 @@ export interface RuntimeSnapshot {
   contextUsage?: ContextUsage;
   /** Generic extension statuses in stable FooterData map order. */
   extensionStatuses?: readonly ExtensionStatus[];
-  throughput?: { inputRate?: number; outputRate?: number };
   /** Active subscription quota windows, when the active provider reports them. */
   sessionWindows?: RateLimitWindow[];
-  activeMs?: number;
-  elapsedMs?: number;
-  lastTurnMs?: number;
   pending?: boolean;
-  /** Session token/cost totals, used for the API ledger preview. */
+  /** Session token/cost totals, used for the cost extra. */
   totals?: { input: number; output: number; cost: number };
   now?: number;
   // Live-only fields (the "current" preview forwards these so it matches the footer exactly).
   gitBranch?: string | null;
   gitStatus?: GitStatusState;
-  turnActive?: boolean;
-  subscription?: boolean;
-  lastContextChars?: number;
   activeProviderHasRow?: boolean;
   sessionPlaceholder?: string;
 }
@@ -60,11 +53,6 @@ function isApplicable(id: SegmentId, ctx: ResolutionContext): boolean {
     case "session":
       // Session quota only for providers whose adapter reports windows.
       return Boolean(capability && capability.quotaSupport !== "none" && runtime.sessionWindows?.length);
-    case "throughput": {
-      // Throughput needs at least one measured rate.
-      const t = runtime.throughput;
-      return Boolean(t && (t.inputRate !== undefined || t.outputRate !== undefined));
-    }
     default:
       return true;
   }
@@ -159,24 +147,12 @@ export function composeFooterLine(
     contextUsage: runtime.contextUsage,
     extensionStatuses: runtime.extensionStatuses,
     pending: runtime.pending,
-    // billingMode(isLocalEndpoint(baseUrl), subscription): local endpoints win regardless. Fall
-    // back to the capability-derived billing for fixture modes that don't pass it explicitly.
-    subscription: runtime.subscription ?? (capability?.billing === "subscription"),
-    turnActive: runtime.turnActive ?? false,
-    meter: {
-      avgInputRate: runtime.throughput?.inputRate,
-      avgOutputRate: runtime.throughput?.outputRate,
-      activeMs: runtime.activeMs,
-      elapsedMs: runtime.elapsedMs,
-      lastTurnMs: runtime.lastTurnMs,
-    },
     totals: runtime.totals,
     sessionWindows: runtime.sessionWindows,
     activeProviderHasRow: runtime.activeProviderHasRow ?? false,
     sessionPlaceholder: runtime.sessionPlaceholder ?? "",
     gitBranch: runtime.gitBranch,
     gitStatus: runtime.gitStatus,
-    lastContextChars: runtime.lastContextChars,
     now: runtime.now,
   }, width, theme);
 }

@@ -23,14 +23,10 @@ const SEGMENT_LABELS: Record<SegmentId, string> = {
   extensions: "Extension statuses",
   context: "Context",
   session: "Session quota",
-  throughput: "Throughput",
-  time: "Time",
 };
 const EXTRA_LABELS = {
   branch: "Git branch",
   cost: "Model session cost",
-  sessionElapsed: "Elapsed time",
-  lastTurn: "Last-turn time",
   pending: "Pending indicator",
 } as const;
 const BAR_STYLES = ["rounded", "block"] as const;

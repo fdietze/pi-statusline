@@ -12,18 +12,6 @@ export function formatContextPercent(percent: number): string {
   return `${percent.toFixed(1)}%`;
 }
 
-export function formatRate(value: number): string {
-  return value >= 1_000 ? `${(value / 1_000).toFixed(1)}k` : `${Math.round(value)}`;
-}
-
-export function formatDuration(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1_000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return seconds % 60 === 0 ? `${minutes}m` : `${minutes}m${String(seconds % 60).padStart(2, "0")}s`;
-  return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}m`;
-}
-
 export function formatResetCountdown(resetAt: number, now = Date.now()): string {
   const minutes = Math.max(0, Math.ceil((resetAt - now) / 60_000));
   if (minutes === 0) return "now";
@@ -31,12 +19,4 @@ export function formatResetCountdown(resetAt: number, now = Date.now()): string 
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h${minutes % 60 ? `${minutes % 60}m` : ""}`;
   return `${Math.floor(hours / 24)}d${hours % 24 ? `${hours % 24}h` : ""}`;
-}
-
-export function formatTime(activeMs: number, elapsedMs?: number, lastTurnMs?: number): string {
-  const extras = [
-    elapsedMs === undefined ? "" : `elapsed ${formatDuration(elapsedMs)}`,
-    lastTurnMs === undefined ? "" : `last ${formatDuration(lastTurnMs)}`,
-  ].filter(Boolean);
-  return `⏳ ${formatDuration(activeMs)}${extras.length ? ` (${extras.join(", ")})` : ""}`;
 }

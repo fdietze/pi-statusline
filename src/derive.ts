@@ -15,10 +15,8 @@ export function deriveModel(model?: { id: string }): string {
   return model?.id ?? "";
 }
 
-// The prompt-processing "rate" (input tokens ÷ time-to-first-token) is only a real, measurable
-// number for local inference. Over a network it collapses to request latency + prompt caching,
-// so it just tracks prompt size (a 7.4k-token prompt reads as a bogus "7.4k t/s"). Detect local
-// endpoints by loopback/LAN host so hosted providers can suppress the meaningless rate.
+// Local inference is billed by nothing but hardware; detect it by loopback/LAN host so provider
+// capabilities (src/settings/providers/capabilities.ts) can classify the billing model.
 export function isLocalEndpoint(baseUrl?: string): boolean {
   if (!baseUrl) return false;
   let host: string;
@@ -37,16 +35,6 @@ export function isLocalEndpoint(baseUrl?: string): boolean {
     || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
 }
 
-// The throughput segment means different things per billing model: on local inference the ↑/↓
-// token rate is the real, measurable point; on a subscription the meaningful budget is the quota
-// window (shown by the session bars), not tokens or cost; on a per-token API what matters is how
-// many tokens you've spent and the running cost.
-export type BillingMode = "local" | "subscription" | "api";
-
-export function billingMode(local: boolean, subscription: boolean): BillingMode {
-  if (local) return "local";
-  return subscription ? "subscription" : "api";
-}
 
 export function deriveEffort(
   level: string,

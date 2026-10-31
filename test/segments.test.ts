@@ -9,15 +9,15 @@ const namedSegments = () => createSegments(enabled, Object.fromEntries(
 ) as Record<(typeof SEGMENT_ORDER)[number], () => string>);
 
 test("segments render in display order and drop disabled or empty values", () => {
-  assert.deepEqual([...SEGMENT_ORDER], ["project", "model", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual([...SEGMENT_ORDER], ["project", "model", "extensions", "context", "session"]);
   const withoutModel = { ...enabled, model: false };
   const renderers = Object.fromEntries(SEGMENT_ORDER.map((id) => [id, () => id === "context" ? "" : id])) as Record<(typeof SEGMENT_ORDER)[number], () => string>;
-  assert.equal(composeSegments(createSegments(withoutModel, renderers), 200), "project · extensions · session · throughput · time");
+  assert.equal(composeSegments(createSegments(withoutModel, renderers), 200), "project · extensions · session");
 });
 
 test("preserves display order while dropping lowest-priority segments", () => {
   const separator = " > ";
-  const withoutTime = "project > model > extensions > context > session > throughput";
+  const withoutTime = "project > model > extensions > context > session";
   assert.equal(composeSegments(namedSegments(), visibleWidth(withoutTime), separator), withoutTime);
 
   const protectedGroup = "extensions > context > session";

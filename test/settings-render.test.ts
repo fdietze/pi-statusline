@@ -36,7 +36,6 @@ function localRuntime(extra: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {
     activeProvider: "ollama",
     thinkingLevel: "medium",
     contextUsage: { percent: 55, tokens: 550_000, contextWindow: 1_000_000 },
-    throughput: { inputRate: 850, outputRate: 62 },
     ...extra,
   };
 }
@@ -55,11 +54,6 @@ test("resolution: session self-hides without quota support", () => {
     runtime: localRuntime({ sessionWindows: [{ label: "5h", used: 0.23 }] }),
   };
   assert.equal(resolveSegmentVisibility(DEFAULT_STATUSLINE_SETTINGS, subCtx).session, true);
-});
-
-test("resolution: throughput self-hides without a measured rate", () => {
-  const ctx: ResolutionContext = { capability: localCapability, runtime: localRuntime({ throughput: {} }) };
-  assert.equal(resolveSegmentVisibility(DEFAULT_STATUSLINE_SETTINGS, ctx).throughput, false);
 });
 
 test("resolution: activeModel tri-state 'off' overrides global on", () => {
@@ -81,20 +75,20 @@ test("resolution: activeModel tri-state 'off' overrides global on", () => {
 
 test("resolution: activeModel tri-state 'on' overrides global off", () => {
   const s = settingsWith({
-    segments: { ...DEFAULT_STATUSLINE_SETTINGS.segments, time: false },
+    segments: { ...DEFAULT_STATUSLINE_SETTINGS.segments, project: false },
     providers: {
       ...DEFAULT_STATUSLINE_SETTINGS.providers,
       records: {
         ollama: {
           enabled: true, displayMode: "default", windows: {},
-          activeModel: { time: "on" } as Record<SegmentId, ActiveModelToggle>,
+          activeModel: { project: "on" } as Record<SegmentId, ActiveModelToggle>,
           supportedOverrides: [],
         },
       },
     },
   });
-  const ctx: ResolutionContext = { capability: localCapability, runtime: localRuntime({ activeMs: 120_000 }) };
-  assert.equal(resolveSegmentVisibility(s, ctx).time, true);
+  const ctx: ResolutionContext = { capability: localCapability, runtime: localRuntime() };
+  assert.equal(resolveSegmentVisibility(s, ctx).project, true);
 });
 
 test("resolution: 'default' inherits global", () => {
@@ -105,9 +99,9 @@ test("resolution: 'default' inherits global", () => {
 });
 
 test("resolution: order validates and falls back to defaults when empty/invalid", () => {
-  assert.deepEqual(resolveOrder(DEFAULT_STATUSLINE_SETTINGS).segmentOrder, ["project", "model", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual(resolveOrder(DEFAULT_STATUSLINE_SETTINGS).segmentOrder, ["project", "model", "extensions", "context", "session"]);
   const bad = settingsWith({ layout: { ...DEFAULT_STATUSLINE_SETTINGS.layout, segmentOrder: ["bogus" as SegmentId] } });
-  assert.deepEqual(resolveOrder(bad).segmentOrder, ["project", "model", "extensions", "context", "session", "throughput", "time"]);
+  assert.deepEqual(resolveOrder(bad).segmentOrder, ["project", "model", "extensions", "context", "session"]);
 });
 
 test("resolution: resolveBarConfig passes through and bounds bar settings", () => {
@@ -231,7 +225,7 @@ test("resolution: icon style ascii emits letter codes; none produces no symbol p
   const ascii = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
   ascii.icons.style = "ascii";
   const asciiLine = composeFooterLine(ascii, ctx, 200);
-  // ascii preset: project='P', model='M', context='C', throughput='R'. Each icon is
+  // ascii preset: project='P', model='M', context='C'. Each icon is
   // followed by a space (matching the live footer's `📁 project` spacing).
   assert.ok(asciiLine.includes("P project"), `ascii: expected 'P project' icon+label, got: ${asciiLine}`);
   assert.ok(asciiLine.startsWith("P "), `ascii: expected project 'P' icon, got: ${asciiLine}`);

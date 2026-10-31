@@ -135,8 +135,6 @@ test("schema: activeModel three-state values", () => {
     extensions: "default",
     context: "default",
     session: "on",
-    throughput: "off",
-    time: "default",
   };
 
   const input = {

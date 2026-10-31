@@ -348,7 +348,7 @@ test("display screen exposes working controls and omits inert settings", () => {
   for (const id of [
     ...Object.keys(DEFAULT_STATUSLINE_SETTINGS.segments).map((key) => `segments.${key}`),
     ...Object.keys(DEFAULT_STATUSLINE_SETTINGS.extras).map((key) => `extras.${key}`),
-    "layout.segmentOrder.project", "layout.narrowPriority.time",
+    "layout.segmentOrder.project", "layout.narrowPriority.project",
     "separators.main", "separators.projectGit", "separators.padding",
     "separators.spacingBefore", "separators.spacingAfter", "separators.trailingSpacing",
     ...Object.keys(DEFAULT_STATUSLINE_SETTINGS.bars).map((key) => `bars.${key}`),
@@ -365,8 +365,8 @@ test("display screen exposes working controls and omits inert settings", () => {
   assert.equal(state.draft.segments.project, false);
   state = routeSettingsKey(select("layout.segmentOrder.model"), "Ctrl+ArrowUp", providerContext).state;
   assert.deepEqual(state.draft.layout.segmentOrder.slice(0, 2), ["model", "project"]);
-  state = routeSettingsKey(select("layout.narrowPriority.throughput"), "Ctrl+ArrowUp", providerContext).state;
-  assert.deepEqual(state.draft.layout.narrowPriority.slice(0, 2), ["throughput", "time"]);
+  state = routeSettingsKey(select("layout.narrowPriority.model"), "Ctrl+ArrowUp", providerContext).state;
+  assert.deepEqual(state.draft.layout.narrowPriority.slice(0, 2), ["model", "project"]);
 
   state = routeSettingsKey(select("separators.main"), "X", providerContext).state;
   assert.equal(state.draft.separators.main, " >X");

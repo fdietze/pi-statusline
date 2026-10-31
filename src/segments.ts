@@ -6,8 +6,6 @@ export const SEGMENT_ORDER = [
   "extensions",
   "context",
   "session",
-  "throughput",
-  "time",
 ] as const;
 
 export type SegmentId = (typeof SEGMENT_ORDER)[number];
@@ -25,7 +23,7 @@ export function createSegments(
   return SEGMENT_ORDER.map((id) => ({ id, enabled: enabled[id], render: renderers[id] }));
 }
 
-const COMPACT_ORDER: SegmentId[] = ["context", "extensions", "session", "model", "project", "throughput", "time"];
+const COMPACT_ORDER: SegmentId[] = ["context", "extensions", "session", "model", "project"];
 const DROP_ORDER = COMPACT_ORDER.slice(1).reverse();
 
 export function composeSegments(

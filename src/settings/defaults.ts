@@ -115,8 +115,6 @@ const DEFAULT_PREVIEW = {
 const DEFAULT_EXTRAS = {
   branch: true,
   cost: false,
-  sessionElapsed: false,
-  lastTurn: false,
   pending: false,
 };
 
@@ -126,7 +124,7 @@ const DEFAULT_LAYOUT = {
   placement: "below" as ProviderPlacement,
   maxWidth: 0,
   segmentOrder: [...SEGMENT_ORDER] as SegmentId[],
-  narrowPriority: ["time", "throughput", "project", "model", "session", "extensions"] as SegmentId[],
+  narrowPriority: ["project", "model", "session", "extensions"] as SegmentId[],
   rightAlignedExtensionStatuses: ["mcp"],
 };
 
@@ -145,15 +143,13 @@ const DEFAULT_SEGMENTS: Record<SegmentId, boolean> = {
   extensions: true,
   context: true,
   session: true,
-  throughput: true,
-  time: true,
 };
 
 /**
  * Default statusline settings reproducing current behavior where meaningful.
  * - enabled: true (footer on by default)
- * - segmentOrder: [project, model, extensions, context, session, throughput, time]
- * - narrowPriority: [time, throughput, project, model, session, extensions] (context preserved last)
+ * - segmentOrder: [project, model, extensions, context, session]
+ * - narrowPriority: [project, model, session, extensions] (context preserved last)
  * - rightAlignedExtensionStatuses: [mcp] (rightmost values survive narrow widths)
  * - bars: rounded width 12, fill '█', empty '░', rounded caps, showPercent true
  * - providerRows: 'newline' (one provider per line)

@@ -5,7 +5,7 @@ import { mergeSettings, DEFAULT_SETTINGS } from "../src/settings/legacy.ts";
 test("mergeSettings: valid legacy input preserved", () => {
   const result = mergeSettings({
     footerEnabled: false,
-    segments: { throughput: false, project: true, model: true, effort: true, context: true, session: true, time: true },
+    segments: { throughput: false, project: true, model: true, effort: true, context: true, session: false, time: true },
     extras: { branch: false, nerdFont: true, cost: true, sessionElapsed: false, lastTurn: false, pending: false },
     providerTracking: {
       enabled: false,
@@ -16,7 +16,7 @@ test("mergeSettings: valid legacy input preserved", () => {
     },
   });
   assert.equal(result.footerEnabled, false);
-  assert.equal(result.segments.throughput, false);
+  assert.equal(result.segments.session, false);
   assert.equal(result.extras.nerdFont, true);
   assert.equal(result.providerTracking.enabled, false);
   assert.deepEqual(result.providerTracking.selected, { anthropic: true });
@@ -37,7 +37,7 @@ test("mergeSettings: partial/missing fields fall back to defaults", () => {
 test("mergeSettings: invalid types coerced to defaults", () => {
   const result = mergeSettings({
     footerEnabled: "yes",
-    segments: { throughput: "off", project: null },
+    segments: { session: "off", project: null },
     extras: { branch: 1, nerdFont: false },
     providerTracking: {
       enabled: "true",
@@ -50,7 +50,7 @@ test("mergeSettings: invalid types coerced to defaults", () => {
   // footerEnabled invalid → default true
   assert.equal(result.footerEnabled, true);
   // segment invalid → default
-  assert.equal(result.segments.throughput, DEFAULT_SETTINGS.segments.throughput);
+  assert.equal(result.segments.session, DEFAULT_SETTINGS.segments.session);
   assert.equal(result.segments.project, DEFAULT_SETTINGS.segments.project);
   // extras: invalid branch → default, valid nerdFont kept
   assert.equal(result.extras.branch, DEFAULT_SETTINGS.extras.branch);

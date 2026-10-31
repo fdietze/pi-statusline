@@ -15,7 +15,7 @@ type Row = EmojisScreenRow & (
   | { kind: "reset" }
 );
 
-export const ICON_SYMBOLS = ["project", "model", "context", "throughput"] as const;
+export const ICON_SYMBOLS = ["project", "model", "context"] as const;
 
 const ICON_STYLES = ["emoji", "unicode", "ascii", "nerdfont", "minimal", "none", "custom"] as const;
 // "default" already renders no provider glyph, so exposing "hidden" would be a duplicate control.

@@ -80,13 +80,11 @@ export function reconcileProviders(settings: StatuslineSettings, registry: Avail
 const SEGMENT_TOGGLE_NAMES = new Set<string>(SEGMENT_ORDER);
 const TOGGLE_ALIASES: Record<string, string> = {
   "session-bars": "session",
-  elapsed: "sessionElapsed",
-  "last-turn": "lastTurn",
 };
 
 /**
  * Apply a /statusline toggle by name on a new-shape StatuslineSettings (returns a new object).
- * Segments flip segments[name]; branch/cost/sessionElapsed/lastTurn/pending flip extras[name];
+ * Segments flip segments[name]; branch/cost/pending flip extras[name];
  * nerdFont toggles icons.style between "nerdfont" and "emoji". Throws for unknown names.
  */
 export function applyToggle(settings: StatuslineSettings, rawName: string): StatuslineSettings {
@@ -109,7 +107,7 @@ export function formatStatusSummary(settings: StatuslineSettings): string {
   const rows: Array<[string, boolean]> = [
     ["footer", settings.enabled],
     ...SEGMENT_ORDER.map((s) => [s, settings.segments[s]] as [string, boolean]),
-    ...(["branch", "cost", "sessionElapsed", "lastTurn", "pending"] as const).map((e) => [e, settings.extras[e]] as [string, boolean]),
+    ...(["branch", "cost", "pending"] as const).map((e) => [e, settings.extras[e]] as [string, boolean]),
     ["nerdFont", settings.icons.style === "nerdfont"],
   ];
   return rows.map(([name, enabled]) => `${name}: ${enabled ? "on" : "off"}`).join("\n");

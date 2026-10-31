@@ -45,10 +45,8 @@ test("validation: valid parse - full valid doc round-trips", () => {
             extensions: "default",
             context: "default",
             session: "default",
-            throughput: "default",
-            time: "default",
           },
-          supportedOverrides: ["project", "model", "extensions", "context", "session", "throughput", "time"],
+          supportedOverrides: ["project", "model", "extensions", "context", "session"],
         },
       },
     },
@@ -56,8 +54,8 @@ test("validation: valid parse - full valid doc round-trips", () => {
       providerRows: "newline",
       placement: "below",
       maxWidth: 0,
-      segmentOrder: ["project", "model", "extensions", "context", "session", "throughput", "time"],
-      narrowPriority: ["time", "throughput", "project", "model", "session", "extensions"],
+      segmentOrder: ["project", "model", "extensions", "context", "session"],
+      narrowPriority: ["project", "model", "session", "extensions"],
       rightAlignedExtensionStatuses: ["mcp"],
     },
     separators: {
@@ -79,8 +77,6 @@ test("validation: valid parse - full valid doc round-trips", () => {
       extensions: true,
       context: true,
       session: true,
-      throughput: true,
-      time: true,
     },
     bars: {
       width: 12,
@@ -129,25 +125,25 @@ test("validation: version 1 settings gain extension-status ordering and provider
 
   const result = parseStatuslineSettings(input);
   assert.equal(result.settings.version, CURRENT_VERSION);
-  assert.deepEqual(result.settings.layout.segmentOrder, ["project", "model", "extensions", "context", "session", "throughput", "time"]);
-  assert.deepEqual(result.settings.layout.narrowPriority, ["time", "throughput", "project", "model", "session", "extensions"]);
+  assert.deepEqual(result.settings.layout.segmentOrder, ["project", "model", "extensions", "context", "session"]);
+  assert.deepEqual(result.settings.layout.narrowPriority, ["project", "model", "session", "extensions"]);
   assert.equal(result.settings.segments.extensions, true);
   assert.equal(result.settings.separators.spacingAfter, 1, "the old default separator adopts corrected spacing");
   assert.equal(result.settings.providers.records.example.activeModel.extensions, "default");
-  assert.deepEqual(result.settings.providers.records.example.supportedOverrides, ["project", "model", "context", "session", "throughput", "time", "extensions"]);
+  assert.deepEqual(result.settings.providers.records.example.supportedOverrides, ["project", "model", "context", "session", "extensions"]);
 });
 
 test("validation: version 1 migration preserves customized ordering and zero spacing", () => {
   const input = structuredClone(DEFAULT_STATUSLINE_SETTINGS) as unknown as Record<string, any>;
   input.version = 1;
-  input.layout.segmentOrder = ["time", "context", "model"];
-  input.layout.narrowPriority = ["model", "time"];
+  input.layout.segmentOrder = ["project", "context", "model"];
+  input.layout.narrowPriority = ["model", "project"];
   delete input.segments.extensions;
   input.separators = { ...input.separators, preset: "Custom", main: "|", spacingAfter: 0 };
 
   const result = parseStatuslineSettings(input);
-  assert.deepEqual(result.settings.layout.segmentOrder, ["time", "extensions", "context", "model"]);
-  assert.deepEqual(result.settings.layout.narrowPriority, ["model", "time", "extensions"]);
+  assert.deepEqual(result.settings.layout.segmentOrder, ["project", "extensions", "context", "model"]);
+  assert.deepEqual(result.settings.layout.narrowPriority, ["model", "project", "extensions"]);
   assert.equal(result.settings.separators.spacingAfter, 0);
 });
 
@@ -389,8 +385,8 @@ test("validation: future version - returns readOnly true and unchanged", () => {
 
 test("validation: sparse doc falls back to full defaults (not empty order/segments)", () => {
   const result = parseStatuslineSettings({ version: CURRENT_VERSION });
-  assert.deepEqual([...result.settings.layout.segmentOrder], ["project", "model", "extensions", "context", "session", "throughput", "time"]);
-  assert.deepEqual(Object.keys(result.settings.segments).sort(), ["context", "extensions", "model", "project", "session", "throughput", "time"]);
+  assert.deepEqual([...result.settings.layout.segmentOrder], ["project", "model", "extensions", "context", "session"]);
+  assert.deepEqual(Object.keys(result.settings.segments).sort(), ["context", "extensions", "model", "project", "session"]);
   assert.deepEqual(result.settings.separators, DEFAULT_STATUSLINE_SETTINGS.separators);
   assert.deepEqual(result.settings.bars, DEFAULT_STATUSLINE_SETTINGS.bars);
   assert.deepEqual(result.settings.thresholds, DEFAULT_STATUSLINE_SETTINGS.thresholds);
@@ -413,11 +409,11 @@ test("validation: hostile provider key yields a single sanitized record", () => 
 
 test("validation: extras parses booleans and falls back to parity defaults", () => {
   const valid = parseStatuslineSettings({ extras: { branch: false, cost: true, sessionElapsed: true, lastTurn: true, pending: true } });
-  assert.deepEqual(valid.settings.extras, { branch: false, cost: true, sessionElapsed: true, lastTurn: true, pending: true });
+  assert.deepEqual(valid.settings.extras, { branch: false, cost: true, pending: true });
 
   // Bad types fall back to the parity defaults (branch true, rest false).
   const bad = parseStatuslineSettings({ extras: { branch: "yes", cost: 1, sessionElapsed: null, lastTurn: undefined, pending: "true" } });
-  assert.deepEqual(bad.settings.extras, { branch: true, cost: false, sessionElapsed: false, lastTurn: false, pending: false });
+  assert.deepEqual(bad.settings.extras, { branch: true, cost: false, pending: false });
 
   // Missing extras group yields the same parity defaults.
   assert.deepEqual(parseStatuslineSettings({}).settings.extras, DEFAULT_STATUSLINE_SETTINGS.extras);
@@ -460,13 +456,15 @@ test("validation: provider refresh unknown bag is idempotent across reparses", (
   assert.equal("__unknown" in (twice.providers.records.dynamic.refresh?.__unknown ?? {}), false);
 });
 
-test("saved settings naming the removed effort segment still load", () => {
+test("saved settings naming removed segments and extras still load", () => {
   const result = parseStatuslineSettings({
     version: CURRENT_VERSION,
-    segments: { effort: false, model: true },
-    layout: { segmentOrder: ["effort", "model", "project"], narrowPriority: ["effort", "project"] },
+    segments: { effort: false, throughput: true, time: true, model: true },
+    layout: { segmentOrder: ["effort", "model", "throughput", "project", "time"], narrowPriority: ["time", "effort", "project"] },
+    extras: { sessionElapsed: true, lastTurn: true, cost: true },
   });
   assert.deepEqual(result.settings.layout.segmentOrder, ["model", "project"]);
   assert.deepEqual(result.settings.layout.narrowPriority, ["project"]);
-  assert.equal("effort" in result.settings.segments, false);
+  for (const id of ["effort", "throughput", "time"]) assert.equal(id in result.settings.segments, false, id);
+  assert.deepEqual(result.settings.extras, { branch: true, cost: true, pending: false });
 });

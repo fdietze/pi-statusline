@@ -1,6 +1,6 @@
 import { SEGMENT_ORDER, type SegmentId } from "../segments.ts";
 
-export const EXTRA_NAMES = ["branch", "nerdFont", "cost", "sessionElapsed", "lastTurn", "pending"] as const;
+export const EXTRA_NAMES = ["branch", "nerdFont", "cost", "pending"] as const;
 export type ExtraName = (typeof EXTRA_NAMES)[number];
 
 export const PROVIDER_METRICS = ["usage", "percent", "reset"] as const;
@@ -43,15 +43,11 @@ export const DEFAULT_SETTINGS: Settings = {
     extensions: true,
     context: true,
     session: true,
-    throughput: true,
-    time: true,
   },
   extras: {
     branch: true,
     nerdFont: false,
     cost: false,
-    sessionElapsed: false,
-    lastTurn: false,
     pending: false,
   },
   providerTracking: DEFAULT_PROVIDER_TRACKING,

@@ -129,7 +129,7 @@ export function migrateLegacySettings(legacy: unknown): Partial<StatuslineSettin
     placement: "below",
     maxWidth: 0,
     segmentOrder: SEGMENT_ORDER.map((id) => id),
-    narrowPriority: ["time", "throughput", "project", "model", "session", "extensions"] as SegmentId[],
+    narrowPriority: ["project", "model", "session", "extensions"] as SegmentId[],
     rightAlignedExtensionStatuses: ["mcp"],
   };
 
@@ -154,8 +154,6 @@ export function migrateLegacySettings(legacy: unknown): Partial<StatuslineSettin
   result.extras = {
     branch: merged.extras.branch,
     cost: merged.extras.cost,
-    sessionElapsed: merged.extras.sessionElapsed,
-    lastTurn: merged.extras.lastTurn,
     pending: merged.extras.pending,
   };
 

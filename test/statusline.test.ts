@@ -17,13 +17,14 @@ let cacheNumber = 0;
 const testCache = () => new ProviderUsageCache(join(cacheRoot, String(cacheNumber++)));
 after(() => rmSync(cacheRoot, { recursive: true, force: true }));
 
-test("stops the live timer when settled or the footer is disposed", async () => {
+test("runs no one-second timer without reset countdowns and stops polling on dispose", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   let footer: { dispose?: () => void } | undefined;
+  const intervals: number[] = [];
   let cleared = 0;
   const originalSetInterval = globalThis.setInterval;
   const originalClearInterval = globalThis.clearInterval;
-  globalThis.setInterval = ((_: () => void) => 1) as typeof setInterval;
+  globalThis.setInterval = ((_: () => void, ms: number) => { intervals.push(ms); return intervals.length; }) as typeof setInterval;
   globalThis.clearInterval = ((_: ReturnType<typeof setInterval>) => { cleared++; }) as typeof clearInterval;
   try {
     const pi = {
@@ -48,15 +49,12 @@ test("stops the live timer when settled or the footer is disposed", async () => 
 
     statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
     await handlers.get("session_start")!({}, ctx);
-    const now = Date.now();
-    handlers.get("turn_start")!({ timestamp: now });
-    handlers.get("agent_settled")!({});
-    assert.equal(cleared, 1);
-
-    handlers.get("turn_start")!({ timestamp: now });
+    assert.equal(handlers.has("turn_start"), false);
+    assert.equal(handlers.has("message_update"), false);
+    // Energy: only 10 s polls run; nothing ticks per second without a reset countdown.
+    assert.deepEqual(intervals.filter((ms) => ms < 10_000), []);
     footer?.dispose?.();
-    // Disposing also stops the independent git-status poll interval alongside the time tick.
-    assert.equal(cleared, 3);
+    assert.ok(cleared >= 1, "dispose stops the git poll");
   } finally {
     globalThis.setInterval = originalSetInterval;
     globalThis.clearInterval = originalClearInterval;
@@ -223,99 +221,6 @@ test("reasserts aggregate progress after started TUI transitions but not an unst
   await handlers.get("session_shutdown")!({ reason: "quit" });
 });
 
-test("raw background activity extends union time without changing foreground rates or requesting OSC", async () => {
-  const handlers = new Map<string, (...args: any[]) => unknown>();
-  const busHandlers = new Map<string, Set<(data: unknown) => void>>();
-  const progressCalls: boolean[] = [];
-  const terminal = { setProgress: (active: boolean) => progressCalls.push(active) };
-  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
-  let now = 0;
-  const originalNow = Date.now;
-  Date.now = () => now;
-  const settingsPath = join(cacheRoot, "activity-union.json");
-  writeFileSync(settingsPath, JSON.stringify({
-    ...DEFAULT_STATUSLINE_SETTINGS,
-    extras: { ...DEFAULT_STATUSLINE_SETTINGS.extras, lastTurn: true },
-  }));
-  const events = {
-    on: (channel: string, handler: (data: unknown) => void) => {
-      const listeners = busHandlers.get(channel) ?? new Set<(data: unknown) => void>();
-      listeners.add(handler);
-      busHandlers.set(channel, listeners);
-      return () => listeners.delete(handler);
-    },
-    emit: (channel: string, data: unknown) => {
-      for (const handler of busHandlers.get(channel) ?? []) handler(data);
-    },
-  };
-  const pi = {
-    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
-    events,
-    registerCommand: () => {},
-    getThinkingLevel: () => "off",
-    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
-  } as never;
-  const ctx = {
-    cwd: process.cwd(),
-    model: { id: "local", provider: "local", baseUrl: "http://localhost:1234" },
-    modelRegistry: { isUsingOAuth: () => false },
-    getContextUsage: () => undefined,
-    hasPendingMessages: () => false,
-    sessionManager: { getBranch: () => [] },
-    ui: {
-      setFooter: (factory: any) => {
-        footer = factory?.(
-          { requestRender: () => {}, terminal },
-          { fg: (_: string, text: string) => text, getColorMode: () => "16", getFgAnsi: () => "" },
-          { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
-        );
-      },
-      notify: () => {},
-    },
-  } as never;
-
-  try {
-    statusline(pi, testCache(), settingsPath);
-    await handlers.get("session_start")!({}, ctx);
-    now = 1_000;
-    events.emit("pi.agent-activity.v1:update", {
-      version: 1,
-      source: "subagents",
-      active: true,
-      terminalProgress: false,
-    });
-    now = 2_000;
-    handlers.get("turn_start")!({ timestamp: now });
-    now = 2_500;
-    handlers.get("message_update")!({ message: { role: "assistant", content: [{ type: "text", text: "working" }] } });
-    now = 3_500;
-    handlers.get("message_end")!({ message: { role: "assistant" } });
-    now = 4_000;
-    await handlers.get("turn_end")!({
-      message: { role: "assistant", content: [{ type: "text", text: "done" }], usage: { input: 100, output: 20 } },
-    }, ctx);
-    const whileChildRuns = footer!.render(500)[0]!;
-    assert.ok(whileChildRuns.includes("⚡↑200 ↓20 t/s"), whileChildRuns);
-    assert.ok(whileChildRuns.includes("⏳ 3s (last 2s)"), whileChildRuns);
-
-    now = 6_000;
-    events.emit("pi.agent-activity.v1:update", {
-      version: 1,
-      source: "subagents",
-      active: false,
-      terminalProgress: false,
-    });
-    const settled = footer!.render(500)[0]!;
-    assert.ok(settled.includes("⚡↑200 ↓20 t/s"), settled);
-    assert.ok(settled.includes("⏳ 5s (last 2s)"), settled);
-    assert.deepEqual(progressCalls, [], "raw timer activity must not imply terminal progress");
-  } finally {
-    footer?.dispose?.();
-    await handlers.get("session_shutdown")?.({ reason: "quit" });
-    Date.now = originalNow;
-  }
-});
-
 test("reads generic extension statuses from footer data on every render", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   const statuses = new Map<string, string>();
@@ -422,15 +327,11 @@ test("renders emoji segments with themed semantic colors", async () => {
   statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
   await handlers.get("session_start")!({}, ctx);
   const initial = footer!.render(500)[0]!;
-  // Subscription (openai-codex + OAuth) hides the throughput ledger at idle; quota bars carry it.
-  assert.equal(initial.includes(" t/s"), false);
   for (const label of ["🪟 </muted><success>55.0%/200K"]) assert.ok(initial.includes(label));
   assert.ok(initial.includes("📁 pi-statusline</muted><dim> > </dim><accent>feature/statusline</accent> <warning>● 2</warning> <warning>↓1</warning> <accent>↑2</accent>"));
   assert.deepEqual(execCalls[0], ["git", ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z"], { cwd: process.cwd(), timeout: 2_000 }]);
   assert.equal(initial.includes("5h"), false);
   assert.equal(initial.includes("wk"), false);
-  const now = Date.now();
-  handlers.get("turn_start")!({ timestamp: now - 1_000 });
   await handlers.get("turn_end")!({ message: { role: "assistant", usage: { input: 850, output: 74 } } }, ctx);
   const resetAt = String(Math.floor((Date.now() + 3_600_000) / 1_000));
   await handlers.get("before_provider_request")!({}, ctx);
@@ -443,7 +344,9 @@ test("renders emoji segments with themed semantic colors", async () => {
     "x-codex-secondary-reset-at": resetAt,
   } }, ctx);
   const line = footer!.render(1_000)[0]!;
-  for (const icon of ["📁", "🤖", "🪟", "⏳"]) assert.ok(line.includes(icon));
+  for (const icon of ["📁", "🤖", "🪟"]) assert.ok(line.includes(icon));
+  assert.equal(line.includes("⏳"), false);
+  assert.equal(line.includes(" t/s"), false);
   assert.ok(line.includes("1h"));
   assert.ok(line.includes("wk"));
   assert.equal(line.includes("5h"), false);
@@ -631,107 +534,6 @@ test("restores Anthropic limits when a session reloads", async () => {
   assert.equal(line.includes("—"), false);
   assert.equal(line.includes(""), false);
   assert.equal(line.includes("⎇"), false);
-  footer?.dispose?.();
-});
-
-test("estimates throughput from response text when a provider reports no usage", async (t) => {
-  // The exact rate assertions require a one-second turn, not one second plus scheduling delay.
-  // Mock before statusline constructs TurnMeter, which captures Date.now as its default clock.
-  // https://nodejs.org/api/test.html#mockmethodobject-methodname-implementation-options
-  let now = 10_000;
-  t.mock.method(Date, "now", () => now);
-  const handlers = new Map<string, (...args: any[]) => unknown>();
-  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
-  t.after(() => footer?.dispose?.());
-  const pi = {
-    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
-    registerCommand: () => {},
-    getThinkingLevel: () => "off",
-    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
-  } as never;
-  const ctx = {
-    cwd: process.cwd(),
-    model: { id: "llama-local", provider: "llama-cpp", baseUrl: "http://localhost:8080/v1" },
-    modelRegistry: { isUsingOAuth: () => false, getApiKeyForProvider: async () => undefined },
-    getContextUsage: () => undefined,
-    hasPendingMessages: () => false,
-    sessionManager: { getBranch: () => [] },
-    ui: {
-      setFooter: (factory: any) => {
-        footer = factory?.(
-          { requestRender: () => {} },
-          { fg: (_: string, text: string) => text, getColorMode: () => "16", getFgAnsi: () => "" },
-          { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
-        );
-      },
-      notify: () => {},
-    },
-  } as never;
-
-  statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
-  await handlers.get("session_start")!({}, ctx);
-  handlers.get("context")!({ messages: [{ role: "user", content: "a".repeat(400) }] });
-  handlers.get("turn_start")!({ timestamp: now });
-  now += 1_000;
-  await handlers.get("turn_end")!({
-    message: { role: "assistant", usage: { input: 0, output: 0 }, content: [{ type: "text", text: "b".repeat(200) }] },
-  }, ctx);
-
-  const line = footer!.render(500)[0]!;
-  assert.ok(line.includes("↑100"));
-  assert.ok(line.includes("↓50"));
-});
-
-test("shows an API token ledger (not a bogus prompt rate) for hosted providers when idle", async () => {
-  const handlers = new Map<string, (...args: any[]) => unknown>();
-  let footer: { dispose?: () => void; render: (width: number) => string[] } | undefined;
-  const pi = {
-    on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
-    registerCommand: () => {},
-    getThinkingLevel: () => "off",
-    exec: async () => ({ code: 0, stdout: "", stderr: "" }),
-  } as never;
-  const ctx = {
-    cwd: process.cwd(),
-    model: { id: "claude-sonnet-4-5", provider: "anthropic", baseUrl: "https://api.anthropic.com" },
-    modelRegistry: { isUsingOAuth: () => false, getApiKeyForProvider: async () => undefined },
-    getContextUsage: () => undefined,
-    hasPendingMessages: () => false,
-    sessionManager: {
-      getBranch: () => [{
-        type: "message",
-        message: {
-          role: "assistant",
-          usage: { input: 7_400, output: 200, cacheRead: 0, cacheWrite: 0, cost: { total: 0.021 } },
-        },
-      }],
-    },
-    ui: {
-      setFooter: (factory: any) => {
-        footer = factory?.(
-          { requestRender: () => {} },
-          { fg: (_: string, text: string) => text, getColorMode: () => "16", getFgAnsi: () => "" },
-          { getGitBranch: () => null, getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
-        );
-      },
-      notify: () => {},
-    },
-  } as never;
-
-  statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
-  await handlers.get("session_start")!({}, ctx);
-  handlers.get("context")!({ messages: [{ role: "user", content: "a".repeat(30_000) }] });
-  const now = Date.now();
-  handlers.get("turn_start")!({ timestamp: now - 1_000 });
-  await handlers.get("turn_end")!({
-    message: { role: "assistant", usage: { input: 7_400, output: 200 }, content: [{ type: "text", text: "b".repeat(800) }] },
-  }, ctx);
-  handlers.get("agent_settled")!({});
-
-  const line = footer!.render(500)[0]!;
-  assert.ok(line.includes("🧾"), `expected API token ledger, got: ${line}`);
-  assert.ok(line.includes("$0.021"), `expected session cost, got: ${line}`);
-  assert.ok(!/↑\d+ ↓\d+ t\/s/.test(line), `should not show a bogus prompt rate, got: ${line}`);
   footer?.dispose?.();
 });
 

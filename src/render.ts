@@ -1,17 +1,8 @@
 import { renderBar, DEFAULT_STOPS, type BarStyle, type ColorStops } from "./bar.ts";
 import { composeSegments, createSegments, SEGMENT_ORDER } from "./segments.ts";
-import {
-  billingMode,
-  deriveContext,
-  deriveEffort,
-  deriveModel,
-  deriveProject,
-  isLocalEndpoint,
-  type ContextUsage,
-} from "./derive.ts";
-import { formatRate, formatResetCountdown, formatTime, formatWindow } from "./format.ts";
+import { deriveContext, deriveEffort, deriveModel, deriveProject, type ContextUsage } from "./derive.ts";
+import { formatResetCountdown } from "./format.ts";
 import { gitBranchSymbol, gitStatusTokens, type GitStatusState, type GitTokenKind } from "./git.ts";
-import { estimateTokens, type ThroughputLevel } from "./throughput.ts";
 import { deriveRateLimitPace, type RateLimitWindow } from "./ratelimit.ts";
 import type { ResetFormat, StatuslineSettings } from "./settings/schema.ts";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
@@ -35,18 +26,6 @@ export interface RenderTheme {
   bold?: (text: string) => string;
   getColorMode?: () => string;
   getFgAnsi?: (color: ThemeColor) => string;
-}
-
-export interface MeterSnapshot {
-  avgInputRate?: number;
-  avgOutputRate?: number;
-  outputRate?: number;
-  outputLevel?: ThroughputLevel;
-  inputLevel?: ThroughputLevel;
-  waitingMs?: number;
-  activeMs?: number;
-  elapsedMs?: number;
-  lastTurnMs?: number;
 }
 
 export interface ExtensionStatus {
@@ -79,13 +58,7 @@ export interface FooterSnapshot {
   gitBranch?: string | null;
   gitStatus?: GitStatusState;
   pending?: boolean;
-  /** True for subscription-billed providers (codex or oauth). */
-  subscription?: boolean;
-  turnActive?: boolean;
-  meter?: MeterSnapshot;
-  /** Last context char count, used to estimate the local prompt-processing rate. */
-  lastContextChars?: number;
-  /** Session token/cost totals, used for the cost extra and the API ledger. */
+  /** Session token/cost totals, used for the cost extra. */
   totals?: { input: number; output: number; cost: number };
   /** Active provider's subscription quota windows (shown on the main line when no provider row does). */
   sessionWindows?: RateLimitWindow[];
@@ -107,11 +80,11 @@ const GIT_ROLES: Record<GitTokenKind, "accent" | "success" | "warning" | "error"
 };
 
 const ICON_PRESETS: Record<StatuslineSettings["icons"]["style"], Record<string, string>> = {
-  emoji: { project: "📁", model: "🤖", context: "🪟", throughput: "⚡", time: "⏳", mcp: "🔌", fast: "⚡" },
-  unicode: { project: "◆", model: "◇", context: "▣", throughput: "↕", time: "◷" },
-  ascii: { project: "P", model: "M", context: "C", throughput: "R", time: "@" },
-  nerdfont: { project: "󰉋", model: "󰧑", context: "󰍛", throughput: "󰓅", time: "󰥔", fast: "⚡" },
-  minimal: { project: "·", model: "·", context: "·", throughput: "·", time: "·" },
+  emoji: { project: "📁", model: "🤖", context: "🪟", mcp: "🔌", fast: "⚡" },
+  unicode: { project: "◆", model: "◇", context: "▣" },
+  ascii: { project: "P", model: "M", context: "C" },
+  nerdfont: { project: "󰉋", model: "󰧑", context: "󰍛", fast: "⚡" },
+  minimal: { project: "·", model: "·", context: "·" },
   none: {},
   custom: {},
 };
@@ -308,34 +281,7 @@ export function renderMainLine(
   const pending = extras.pending && snap.pending;
   const model = deriveModel(snap.model);
   const effort = deriveEffort(snap.thinkingLevel ?? "off", snap.model);
-  const localModel = isLocalEndpoint(snap.model?.baseUrl);
-  const mode = billingMode(localModel, snap.subscription ?? false);
-  const needTotals = extras.cost || (mode === "api" && !snap.turnActive);
-  const totals = needTotals ? snap.totals : undefined;
-  const cost = extras.cost ? totals?.cost : undefined;
-
-  const m = snap.meter ?? {};
-  const liveOutputRate = snap.turnActive && m.outputRate !== undefined ? m.outputRate : undefined;
-  const outputRateLabel = () => paint(m.outputLevel ?? "muted", `↓${formatRate(liveOutputRate ?? m.avgOutputRate ?? 0)}`);
-  const throughputIcon = icon(settings, "throughput");
-  // The ⚡ segment adapts to the billing model (see README "Throughput and time").
-  const throughput = (() => {
-    if (mode === "local") {
-      const promptRate = m.waitingMs ? estimateTokens(snap.lastContextChars ?? 0) / (m.waitingMs / 1_000) : undefined;
-      const inputRate = promptRate ?? m.avgInputRate ?? 0;
-      const input = paint(m.inputLevel ?? "muted", `↑${formatRate(inputRate)}`);
-      return `${paint("muted", throughputIcon)}${input} ${outputRateLabel()}${paint("muted", " t/s")}`;
-    }
-    if (snap.turnActive) return `${paint("muted", throughputIcon)}${outputRateLabel()}${paint("muted", " t/s")}`;
-    if (mode === "subscription") return "";
-    if (!totals || (!totals.input && !totals.output)) return "";
-    return paint("muted", `🧾 ↑${formatWindow(totals.input)} ↓${formatWindow(totals.output)} $${totals.cost.toFixed(3)}`);
-  })();
-
-  const activeMs = m.activeMs ?? 0;
-  const time = activeMs > 0 || m.lastTurnMs !== undefined
-    ? formatTime(activeMs, extras.sessionElapsed ? m.elapsedMs : undefined, extras.lastTurn ? m.lastTurnMs : undefined)
-    : "";
+  const cost = extras.cost ? snap.totals?.cost : undefined;
 
   const sessionWindows = snap.activeProviderHasRow ? [] : (snap.sessionWindows ?? []);
   const sessionProvider = snap.model?.provider;
@@ -405,9 +351,6 @@ export function renderMainLine(
       return `${head}${paint(contextRole(context), context.label)}`;
     },
     session: () => session,
-    throughput: () => throughput,
-    // formatTime already carries its own ⏳ glyph; no icon prefix.
-    time: () => time ? paint("muted", time) : "",
   }).sort((a, b) => (orderRank.get(a.id) ?? SEGMENT_ORDER.length) - (orderRank.get(b.id) ?? SEGMENT_ORDER.length));
   const inner = Math.max(0, width - Math.min(settings.separators.trailingSpacing, Math.max(0, width)));
   const separator = `${settings.separators.padding}${" ".repeat(settings.separators.spacingBefore)}${settings.separators.main}${" ".repeat(settings.separators.spacingAfter)}`;

@@ -418,8 +418,6 @@ function parseExtras(value: unknown): StatuslineSettings["extras"] {
   return {
     branch: bool(input.branch, true),
     cost: bool(input.cost, false),
-    sessionElapsed: bool(input.sessionElapsed, false),
-    lastTurn: bool(input.lastTurn, false),
     pending: bool(input.pending, false),
   };
 }

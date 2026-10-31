@@ -294,7 +294,6 @@ test("Fast status is inline after model@effort with a Nerd glyph and warning-col
     model: { id: "gpt-5.6-sol", provider: "openai-codex", reasoning: true },
     thinkingLevel: "high",
     contextUsage: { percent: 13.2, tokens: 36_000, contextWindow: 272_000 },
-    subscription: true,
     extensionStatuses: [
       { key: "review", value: "REVIEW" },
       { key: "fast", value: "fast" },
@@ -315,12 +314,10 @@ test("default separator leaves space before each following emoji segment", () =>
     model: { id: "gpt-5.6-sol", provider: "openai-codex", reasoning: true },
     thinkingLevel: "high",
     contextUsage: { percent: 13.2, tokens: 36_000, contextWindow: 272_000 },
-    subscription: true,
-    meter: { activeMs: 60_000 },
   }, 200);
 
   assert.ok(line.includes("nixos > main"), line);
-  for (const glyph of ["🤖", "🪟", "⏳"]) {
+  for (const glyph of ["🤖", "🪟"]) {
     assert.ok(line.includes(` > ${glyph}`), `missing separator space before ${glyph}: ${line}`);
     assert.equal(line.includes(`>${glyph}`), false, `separator touches ${glyph}: ${line}`);
   }
@@ -354,7 +351,7 @@ test("configured separator spacing and narrow drop priority affect the line", ()
   settings.separators.padding = "~";
   settings.separators.spacingBefore = 1;
   settings.separators.spacingAfter = 2;
-  settings.layout.narrowPriority = ["context", "time", "throughput", "session", "model", "project"];
+  settings.layout.narrowPriority = ["context", "session", "model", "project"];
   const snapshot = {
     cwd: "/tmp/project",
     model: { id: "claude", provider: "anthropic", reasoning: true },

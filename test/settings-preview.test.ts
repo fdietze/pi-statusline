@@ -41,9 +41,7 @@ function liveContext(): ResolutionContext {
       thinkingLevel: "high",
       contextUsage: { percent: 30, tokens: 60_000, contextWindow: 200_000 },
       sessionWindows: anthropicWindows,
-      activeMs: 0,
-      elapsedMs: 60_000,
-      lastTurnMs: 5_000,
+      totals: { input: 1_000, output: 500, cost: 0.5 },
     },
   };
 }
@@ -80,15 +78,14 @@ test("preview refocuses on the provider whose detail is being edited", () => {
   assert.equal(joined.includes("claude-sonnet-4-5"), false, `live Anthropic model must not dominate the edited-provider preview: ${joined}`);
 });
 
-test("preview reflects draft extras (session elapsed) before saving", () => {
-  // Extras off (default): the time segment omits the elapsed annotation.
+test("preview reflects draft extras (cost) before saving", () => {
   const off = previewLines(DEFAULT_STATUSLINE_SETTINGS).join("\n");
-  assert.equal(off.includes("elapsed"), false, `sessionElapsed off must hide elapsed: ${off}`);
+  assert.equal(off.includes("$0.500"), false, `cost off must hide the cost: ${off}`);
 
   const on = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
-  on.extras.sessionElapsed = true;
+  on.extras.cost = true;
   const onJoined = previewLines(on).join("\n");
-  assert.ok(onJoined.includes("elapsed"), `sessionElapsed on must show elapsed in the preview: ${onJoined}`);
+  assert.ok(onJoined.includes("$0.500"), `cost on must show the cost in the preview: ${onJoined}`);
 });
 
 test("preview immediately reflects the draft master enabled toggle", () => {

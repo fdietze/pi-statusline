@@ -230,10 +230,6 @@ export interface ExtrasSettings {
   branch: boolean;
   /** Show the running session cost in the model segment. */
   cost: boolean;
-  /** Include the total session elapsed time in the time segment. */
-  sessionElapsed: boolean;
-  /** Include the last turn duration in the time segment. */
-  lastTurn: boolean;
   /** Show a queued/pending indicator. */
   pending: boolean;
 }
