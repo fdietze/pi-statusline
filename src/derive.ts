@@ -35,7 +35,6 @@ export function isLocalEndpoint(baseUrl?: string): boolean {
     || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
 }
 
-
 export function deriveEffort(
   level: string,
   model?: { reasoning?: boolean },

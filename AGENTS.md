@@ -14,7 +14,7 @@ pi-statusline: a configurable status footer extension for [pi](https://github.co
 ## Layout
 
 - `extensions/statusline.ts` — pi extension entry point (registers the footer + `/statusline` command)
-- `src/` — segment logic (`bar`, `config`, `derive`, `format`, `git`, `ratelimit`, `segments`, `throughput`)
+- `src/` — segment logic (`agent-activity`, `bar`, `codex-daily`, `derive`, `format`, `git`, `provider-cache`, `providers`, `ratelimit`, `render`, `segments`, `settings/`)
 - `test/` — one test file per `src/` module
 
 <!-- BEGIN COMPOUND PI TOOL MAP -->
