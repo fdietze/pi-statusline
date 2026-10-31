@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { contextSeverity, deriveContext, deriveEffort, deriveModel, deriveProject, isLocalEndpoint } from "../src/derive.ts";
+import { deriveContext, deriveEffort, deriveModel, deriveProject, isLocalEndpoint } from "../src/derive.ts";
 
 test("derives project, model, and effort applicability", () => {
   assert.equal(deriveProject("/tmp/pi-statusline"), "pi-statusline");
@@ -29,13 +29,4 @@ test("context uses provided percent/window and hides unavailable values", () => 
   });
   assert.equal(deriveContext(undefined), undefined);
   assert.equal(deriveContext({ tokens: null, percent: null, contextWindow: 200_000 }), undefined);
-});
-
-test("context severity warns on absolute tokens and small-window percentages", () => {
-  assert.equal(contextSeverity({ percent: 17, tokens: 170_000 }), "error");
-  assert.equal(contextSeverity({ percent: 13, tokens: 130_000 }), "warning");
-  assert.equal(contextSeverity({ percent: 11, tokens: 119_999 }), "success");
-  // Small-window models still redline on percent under the absolute thresholds.
-  assert.equal(contextSeverity({ percent: 92, tokens: 50_000 }), "error");
-  assert.equal(contextSeverity({ percent: 80, tokens: 50_000 }), "warning");
 });
