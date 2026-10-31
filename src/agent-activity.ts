@@ -11,11 +11,6 @@ export interface AgentActivitySourceUpdate {
   terminalProgress: boolean;
 }
 
-export interface AgentActivityAggregate {
-  active: boolean;
-  terminalProgress: boolean;
-}
-
 function parseUpdate(value: unknown): AgentActivitySourceUpdate | undefined {
   if (!value || typeof value !== "object") return undefined;
   const candidate = value as Partial<AgentActivitySourceUpdate>;
@@ -30,35 +25,32 @@ function parseUpdate(value: unknown): AgentActivitySourceUpdate | undefined {
   return candidate as AgentActivitySourceUpdate;
 }
 
-/** Local projection of all live sources; reset/query on every foreground session start. */
+/**
+ * Local projection of all live sources onto the one thing the footer shows: whether any source
+ * requests terminal progress. Raw `active` is validated as part of the v1 protocol but not shown
+ * (YAGNI). Reset/query on every foreground session start.
+ */
 export class AgentActivitySources {
-  private readonly sources = new Map<string, AgentActivitySourceUpdate>();
+  private readonly progressSources = new Set<string>();
 
+  /** Applies one source update; returns whether the aggregate terminal progress may have changed. */
   update(value: unknown): boolean {
     const next = parseUpdate(value);
     if (!next) return false;
-    const previous = this.sources.get(next.source);
-    if (previous?.active === next.active && previous.terminalProgress === next.terminalProgress) return false;
-    if (!next.active && !next.terminalProgress) this.sources.delete(next.source);
-    else this.sources.set(next.source, next);
+    if (next.terminalProgress === this.progressSources.has(next.source)) return false;
+    if (next.terminalProgress) this.progressSources.add(next.source);
+    else this.progressSources.delete(next.source);
     return true;
   }
 
   clear(): boolean {
-    if (this.sources.size === 0) return false;
-    this.sources.clear();
+    if (this.progressSources.size === 0) return false;
+    this.progressSources.clear();
     return true;
   }
 
-  snapshot(): AgentActivityAggregate {
-    let active = false;
-    let terminalProgress = false;
-    for (const source of this.sources.values()) {
-      active ||= source.active;
-      terminalProgress ||= source.terminalProgress;
-      if (active && terminalProgress) break;
-    }
-    return { active, terminalProgress };
+  terminalProgress(): boolean {
+    return this.progressSources.size > 0;
   }
 }
 

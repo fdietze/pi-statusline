@@ -2,18 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentActivitySources, TerminalProgressMultiplexer } from "../src/agent-activity.ts";
 
-test("activity sources aggregate independent raw activity and progress projections", () => {
+test("activity sources aggregate terminal progress across sources and ignore raw activity", () => {
   const sources = new AgentActivitySources();
-  assert.deepEqual(sources.snapshot(), { active: false, terminalProgress: false });
-  assert.equal(sources.update({ version: 1, source: "timer-only", active: true, terminalProgress: false }), true);
-  assert.deepEqual(sources.snapshot(), { active: true, terminalProgress: false });
-  assert.equal(sources.update({ version: 1, source: "progress-only", active: false, terminalProgress: true }), true);
-  assert.deepEqual(sources.snapshot(), { active: true, terminalProgress: true });
+  assert.equal(sources.terminalProgress(), false);
+  assert.equal(sources.update({ version: 1, source: "timer-only", active: true, terminalProgress: false }), false);
+  assert.equal(sources.terminalProgress(), false);
+  assert.equal(sources.update({ version: 1, source: "a", active: false, terminalProgress: true }), true);
+  assert.equal(sources.update({ version: 1, source: "b", active: true, terminalProgress: true }), true);
+  assert.equal(sources.terminalProgress(), true);
 
-  assert.equal(sources.update({ version: 1, source: "timer-only", active: false, terminalProgress: false }), true);
-  assert.deepEqual(sources.snapshot(), { active: false, terminalProgress: true });
-  assert.equal(sources.update({ version: 1, source: "progress-only", active: false, terminalProgress: false }), true);
-  assert.deepEqual(sources.snapshot(), { active: false, terminalProgress: false });
+  assert.equal(sources.update({ version: 1, source: "a", active: false, terminalProgress: false }), true);
+  assert.equal(sources.terminalProgress(), true);
+  assert.equal(sources.update({ version: 1, source: "b", active: false, terminalProgress: false }), true);
+  assert.equal(sources.terminalProgress(), false);
 });
 
 test("activity sources reject malformed updates, deduplicate, and reset", () => {

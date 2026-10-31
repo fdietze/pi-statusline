@@ -115,7 +115,7 @@ export default function statusline(
     disposeProgressMultiplexer();
     progressTerminal = terminal;
     progressMultiplexer = new TerminalProgressMultiplexer(terminal, initialNativeActive);
-    progressMultiplexer.setExternal(activitySources.snapshot().terminalProgress);
+    progressMultiplexer.setExternal(activitySources.terminalProgress());
   };
   type ExtensionEventBus = {
     on(channel: string, handler: (data: unknown) => void): () => void;
@@ -124,7 +124,7 @@ export default function statusline(
   const extensionEvents = (pi as unknown as { events?: ExtensionEventBus }).events;
   extensionEvents?.on(AGENT_ACTIVITY_UPDATE_EVENT, (data) => {
     if (!activitySources.update(data)) return;
-    progressMultiplexer?.setExternal(activitySources.snapshot().terminalProgress);
+    progressMultiplexer?.setExternal(activitySources.terminalProgress());
   });
 
   const refreshGit = async (ctx: ExtensionContext, epoch = sessionEpoch) => {

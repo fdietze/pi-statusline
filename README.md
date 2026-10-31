@@ -100,7 +100,7 @@ GLM (Z.AI) is the one exception to "documented endpoint only": it uses `GET http
 
 ## Background activity and terminal progress
 
-Foreground extensions can publish version 1 source snapshots on Pi's shared `pi.agent-activity.v1:update` event channel with `{ version: 1, source, active, terminalProgress }`. The statusline requests current snapshots on `pi.agent-activity.v1:request` when a session starts, so extension load order does not lose live state. `terminalProgress` contributes to OSC progress; raw `active` is accepted but not displayed.
+Foreground extensions can publish version 1 source snapshots on Pi's shared `pi.agent-activity.v1:update` event channel with `{ version: 1, source, active, terminalProgress }`. The statusline requests current snapshots on `pi.agent-activity.v1:request` when a session starts, so extension load order does not lose live state. `terminalProgress` contributes to OSC progress; `active` is validated but ignored.
 
 The footer arbitrates external progress with Pi's native foreground request through the existing terminal's `setProgress()` method. Pi's terminal remains the sole OSC 9;4 writer and keepalive owner. The multiplexer observes the shared terminal's `start()` lifecycle and reasserts an active aggregate after a renderer restart, without adding another timer or OSC writer.
 
