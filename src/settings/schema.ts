@@ -143,8 +143,6 @@ export interface LayoutSettings {
 export interface SeparatorsSettings {
   /** Main segment separator. */
   main: string;
-  /** Project/Git segment separator. */
-  projectGit: string;
   /** Window separator. */
   window: string;
   /** Provider row separator. */
@@ -226,8 +224,6 @@ export interface PreviewSettings {
 
 /** Extra display toggles preserved from the legacy `extras` group (feature parity). */
 export interface ExtrasSettings {
-  /** Show the git branch in the project segment. */
-  branch: boolean;
   /** Show the running session cost in the model segment. */
   cost: boolean;
   /** Show a queued/pending indicator. */

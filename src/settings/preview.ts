@@ -161,8 +161,6 @@ function resolveCurrentPreview(input: PreviewInput): { label: string; ctx: Resol
       thinkingLevel: live.runtime.thinkingLevel,
       contextUsage: live.runtime.contextUsage,
       extensionStatuses: live.runtime.extensionStatuses,
-      gitBranch: live.runtime.gitBranch,
-      gitStatus: live.runtime.gitStatus,
       pending: live.runtime.pending,
       totals: live.runtime.totals,
       activeProvider: target,

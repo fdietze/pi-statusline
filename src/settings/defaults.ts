@@ -61,7 +61,6 @@ const DEFAULT_PROVIDER_DEFAULTS: ProviderDefaults = {
 /** Default separators — match the live footer's documented look (` > ` between segments). */
 const DEFAULT_SEPARATORS = {
   main: " >",
-  projectGit: " > ",
   window: " | ",
   provider: "\n",
   iconLabel: "",
@@ -111,9 +110,8 @@ const DEFAULT_PREVIEW = {
   mode: "current" as PreviewMode,
 };
 
-/** Default extras (legacy feature parity: branch on, others off). */
+/** Default extras (all off). */
 const DEFAULT_EXTRAS = {
-  branch: true,
   cost: false,
   pending: false,
 };

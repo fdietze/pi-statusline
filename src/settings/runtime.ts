@@ -28,12 +28,11 @@ export function configuredProviders(registry: AvailableModelRegistry): string[] 
 /** Pre-0.9 default separators. Now that the footer is settings-driven, a saved doc still
  * holding these would flip the live look from `>` to `·`; migrate it once, in-memory and
  * idempotently, so the documented look is preserved without touching a user's real edits. */
-const LEGACY_DEFAULT_SEPARATORS = { main: " · ", projectGit: " " } as const;
+const LEGACY_DEFAULT_MAIN_SEPARATOR = " · ";
 
 function migrateLegacyDefaultSeparators(settings: StatuslineSettings): StatuslineSettings {
-  const { main, projectGit } = settings.separators;
-  if (main === LEGACY_DEFAULT_SEPARATORS.main && projectGit === LEGACY_DEFAULT_SEPARATORS.projectGit) {
-    return { ...settings, separators: { ...settings.separators, main: DEFAULT_STATUSLINE_SETTINGS.separators.main, projectGit: DEFAULT_STATUSLINE_SETTINGS.separators.projectGit } };
+  if (settings.separators.main === LEGACY_DEFAULT_MAIN_SEPARATOR) {
+    return { ...settings, separators: { ...settings.separators, main: DEFAULT_STATUSLINE_SETTINGS.separators.main } };
   }
   return settings;
 }
@@ -84,7 +83,7 @@ const TOGGLE_ALIASES: Record<string, string> = {
 
 /**
  * Apply a /statusline toggle by name on a new-shape StatuslineSettings (returns a new object).
- * Segments flip segments[name]; branch/cost/pending flip extras[name];
+ * Segments flip segments[name]; cost/pending flip extras[name];
  * nerdFont toggles icons.style between "nerdfont" and "emoji". Throws for unknown names.
  */
 export function applyToggle(settings: StatuslineSettings, rawName: string): StatuslineSettings {
@@ -107,7 +106,7 @@ export function formatStatusSummary(settings: StatuslineSettings): string {
   const rows: Array<[string, boolean]> = [
     ["footer", settings.enabled],
     ...SEGMENT_ORDER.map((s) => [s, settings.segments[s]] as [string, boolean]),
-    ...(["branch", "cost", "pending"] as const).map((e) => [e, settings.extras[e]] as [string, boolean]),
+    ...(["cost", "pending"] as const).map((e) => [e, settings.extras[e]] as [string, boolean]),
     ["nerdFont", settings.icons.style === "nerdfont"],
   ];
   return rows.map(([name, enabled]) => `${name}: ${enabled ? "on" : "off"}`).join("\n");

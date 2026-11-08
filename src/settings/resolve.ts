@@ -3,7 +3,6 @@ import { type ContextUsage } from "../derive.ts";
 import type { StatuslineSettings, ActiveModelToggle } from "./schema.ts";
 import type { ProviderCapability } from "./providers/capabilities.ts";
 import type { RateLimitWindow } from "../ratelimit.ts";
-import type { GitStatusState } from "../git.ts";
 import { renderMainLine, type ExtensionStatus, type RenderTheme } from "../render.ts";
 
 /**
@@ -31,8 +30,6 @@ export interface RuntimeSnapshot {
   totals?: { input: number; output: number; cost: number };
   now?: number;
   // Live-only fields (the "current" preview forwards these so it matches the footer exactly).
-  gitBranch?: string | null;
-  gitStatus?: GitStatusState;
   activeProviderHasRow?: boolean;
   sessionPlaceholder?: string;
 }
@@ -151,8 +148,6 @@ export function composeFooterLine(
     sessionWindows: runtime.sessionWindows,
     activeProviderHasRow: runtime.activeProviderHasRow ?? false,
     sessionPlaceholder: runtime.sessionPlaceholder ?? "",
-    gitBranch: runtime.gitBranch,
-    gitStatus: runtime.gitStatus,
     now: runtime.now,
   }, width, theme);
 }

@@ -144,7 +144,7 @@ test("storage: read future version -> readOnly true, returned unchanged", () => 
       enabled: false,
       providers: { enabled: false, order: [], defaults: {}, records: {} },
       layout: { providerRows: "inline", placement: "above", maxWidth: 100, segmentOrder: [], narrowPriority: [] },
-      separators: { main: "|", projectGit: "", window: "", provider: "", iconLabel: "", labelValue: "", spacingBefore: 0, spacingAfter: 0, trailingSpacing: 0, padding: "", preset: "Custom" },
+      separators: { main: "|", window: "", provider: "", iconLabel: "", labelValue: "", spacingBefore: 0, spacingAfter: 0, trailingSpacing: 0, padding: "", preset: "Custom" },
       segments: { project: false, model: false, effort: false, context: false, session: false, throughput: false, time: false },
       bars: { width: 20, fill: "#", empty: "-", capLeft: "[", capRight: "]", showPercent: false, style: "block", truecolor: false, warnAt: 50, critAt: 75 },
       thresholds: { contextWarn: 50, contextCrit: 75 },

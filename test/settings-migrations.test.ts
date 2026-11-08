@@ -67,9 +67,8 @@ test("migration: legacy footerEnabled+segments+extras+providerTracking maps to n
   assert.ok(migrated.layout);
   assert.equal(migrated.layout?.providerRows, "newline");
 
-  // Extras: legacy toggles preserved (nerdFont migrated to icons above)
+  // Extras: legacy toggles preserved (nerdFont migrated to icons above; branch removed)
   assert.deepEqual(migrated.extras, {
-    branch: true,
     cost: false,
     pending: true,
   });

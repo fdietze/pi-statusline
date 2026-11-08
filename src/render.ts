@@ -2,7 +2,6 @@ import { renderBar, DEFAULT_STOPS, type BarStyle, type ColorStops } from "./bar.
 import { composeSegments, createSegments, SEGMENT_ORDER } from "./segments.ts";
 import { deriveContext, deriveEffort, deriveModel, deriveProject, type ContextUsage } from "./derive.ts";
 import { formatResetCountdown } from "./format.ts";
-import { gitBranchSymbol, gitStatusTokens, type GitStatusState, type GitTokenKind } from "./git.ts";
 import { deriveRateLimitPace, type RateLimitWindow } from "./ratelimit.ts";
 import type { ResetFormat, StatuslineSettings } from "./settings/schema.ts";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
@@ -54,9 +53,6 @@ export interface FooterSnapshot {
   model?: { id: string; provider?: string; reasoning?: boolean; baseUrl?: string };
   thinkingLevel?: string;
   contextUsage?: ContextUsage;
-  /** Branch name to show; only meaningful when extras.branch is on. */
-  gitBranch?: string | null;
-  gitStatus?: GitStatusState;
   pending?: boolean;
   /** Session token/cost totals, used for the cost extra. */
   totals?: { input: number; output: number; cost: number };
@@ -70,14 +66,6 @@ export interface FooterSnapshot {
   extensionStatuses?: readonly ExtensionStatus[];
   now?: number;
 }
-
-const GIT_ROLES: Record<GitTokenKind, "accent" | "success" | "warning" | "error"> = {
-  ahead: "accent",
-  behind: "warning",
-  dirty: "warning",
-  clean: "success",
-  error: "error",
-};
 
 const ICON_PRESETS: Record<StatuslineSettings["icons"]["style"], Record<string, string>> = {
   emoji: { project: "📁", model: "🤖", context: "🪟", mcp: "🔌", fast: "⚡" },
@@ -270,14 +258,6 @@ export function renderMainLine(
     if (ctx.percent >= settings.thresholds.contextWarn || tokens >= 200_000) return "warning";
     return "success";
   };
-  const branch = extras.branch ? snap.gitBranch : undefined;
-  const branchSymbol = gitBranchSymbol(settings.icons.style === "nerdfont");
-  const git = branch
-    ? [
-      paint("accent", `${branchSymbol ? `${branchSymbol} ` : ""}${branch}`),
-      ...(snap.gitStatus ? gitStatusTokens(snap.gitStatus).map((token) => paint(GIT_ROLES[token.kind], token.text)) : []),
-    ].join(" ")
-    : "";
   const pending = extras.pending && snap.pending;
   const model = deriveModel(snap.model);
   const effort = deriveEffort(snap.thinkingLevel ?? "off", snap.model);
@@ -331,8 +311,7 @@ export function renderMainLine(
       // The host belongs to the project head so it drops with the project under width pressure.
       const host = plainText(snap.hostname);
       const head = paint("muted", `${host ? `${host} ` : ""}${withSpace("project", deriveProject(snap.cwd))}`);
-      const tail = `${git ? `${paint("dim", settings.separators.projectGit)}${git}` : ""}${pending ? ` ${paint("muted", "queued")}` : ""}`;
-      return `${head}${tail}`;
+      return `${head}${pending ? ` ${paint("muted", "queued")}` : ""}`;
     },
     model: () => {
       if (!model) return "";

@@ -53,7 +53,7 @@ export function migrateVersionOneSettings(source: Record<string, unknown>): Reco
   // Adopt the spacing correction only for the exact v1 default; explicit Custom spacing remains.
   if (migrated.separators && typeof migrated.separators === "object" && !Array.isArray(migrated.separators)) {
     const separators = migrated.separators as Record<string, unknown>;
-    if (separators.preset === "Default" && separators.main === " >" && separators.projectGit === " > "
+    if (separators.preset === "Default" && separators.main === " >"
       && separators.padding === "" && separators.spacingBefore === 0 && separators.spacingAfter === 0) {
       separators.spacingAfter = 1;
     }
@@ -152,7 +152,6 @@ export function migrateLegacySettings(legacy: unknown): Partial<StatuslineSettin
 
   // Extras: preserve the remaining legacy display toggles (nerdFont migrated to icons above).
   result.extras = {
-    branch: merged.extras.branch,
     cost: merged.extras.cost,
     pending: merged.extras.pending,
   };

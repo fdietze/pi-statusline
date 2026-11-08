@@ -12,7 +12,6 @@ import {
 } from "../src/agent-activity.ts";
 import { codexAccountScope, CodexDailyUsage, CODEX_QUOTA_HISTORY_DIR } from "../src/codex-daily.ts";
 import { msUntilResetCountdownChange } from "../src/format.ts";
-import { parseGitStatus, type GitStatusState } from "../src/git.ts";
 import { parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage, type RateLimits, type RateLimitWindow } from "../src/ratelimit.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
 import { ProviderRefreshCoordinator, RateLimitedError, type ProviderAdapter } from "../src/providers.ts";
@@ -51,11 +50,9 @@ export default function statusline(
 ) {
   let settings: StatuslineSettings = loadRuntimeSettings(settingsPath);
   let limits: RateLimits = [];
-  let gitStatus: GitStatusState | undefined;
   const ANTHROPIC_LIMITS_ENTRY = "pi-statusline:anthropic-limits";
   let requestRender: (() => void) | undefined;
   let tick: ReturnType<typeof setTimeout> | undefined;
-  let gitTick: ReturnType<typeof setInterval> | undefined;
   let anthropicRetryTimer: ReturnType<typeof setTimeout> | undefined;
   let sessionActive = false;
   let sessionEpoch = 0;
@@ -63,7 +60,6 @@ export default function statusline(
   let progressTerminal: ProgressTerminal | undefined;
   let progressMultiplexer: TerminalProgressMultiplexer | undefined;
   // Live footer-only values captured so the settings preview can show the same HUD and statuses.
-  let liveGitBranch: string | null | undefined;
   let liveExtensionStatuses: ExtensionStatus[] = [];
   // True while the settings overlay is open; keeps commitSettings from flashing the live footer.
   let settingsOverlayOpen = false;
@@ -126,39 +122,6 @@ export default function statusline(
     if (!activitySources.update(data)) return;
     progressMultiplexer?.setExternal(activitySources.terminalProgress());
   });
-
-  const refreshGit = async (ctx: ExtensionContext, epoch = sessionEpoch) => {
-    if (!isCurrentSession(epoch)) return;
-    if (!settings.extras.branch) {
-      gitStatus = undefined;
-      return;
-    }
-    try {
-      // --no-optional-locks: a footer poll must never take the repo's index.lock.
-      // Otherwise every poll briefly blocks other git writers, and the 2 s timeout's
-      // SIGTERM can kill git between creating index.lock and registering its cleanup,
-      // which leaves a stale 0-byte lock behind under heavy disk IO.
-      const result = await pi.exec("git", ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z"], { cwd: ctx.cwd, timeout: 2_000 });
-      if (!isCurrentSession(epoch)) return;
-      gitStatus = result.code === 0 ? parseGitStatus(result.stdout) : "error";
-    } catch {
-      if (!isCurrentSession(epoch)) return;
-      gitStatus = "error";
-    }
-    requestRender?.();
-  };
-
-  const stopGitTick = () => {
-    if (gitTick) clearInterval(gitTick);
-    gitTick = undefined;
-  };
-  const syncGitTick = (ctx: ExtensionContext, epoch = sessionEpoch) => {
-    const shouldTick = isCurrentSession(epoch) && settings.enabled && settings.extras.branch;
-    if (shouldTick && !gitTick) {
-      gitTick = setInterval(() => void refreshGit(ctx, epoch), 10_000);
-      gitTick.unref?.();
-    } else if (!shouldTick) stopGitTick();
-  };
 
   const stopAnthropicRetry = () => {
     if (anthropicRetryTimer) clearTimeout(anthropicRetryTimer);
@@ -386,16 +349,9 @@ export default function statusline(
         (tui as unknown as { terminal?: ProgressTerminal }).terminal,
         typeof ctx.isIdle === "function" && !ctx.isIdle(),
       );
-      const unsubscribe = footerData.onBranchChange(() => {
-        gitStatus = undefined;
-        tui.requestRender();
-        void refreshGit(ctx, epoch);
-      });
       return {
         dispose() {
-          unsubscribe();
           stopTick();
-          stopGitTick();
           stopAnthropicRetry();
           requestRender = undefined;
         },
@@ -443,10 +399,6 @@ export default function statusline(
             thinkingLevel: pi.getThinkingLevel(),
             contextUsage: ctx.getContextUsage(),
             extensionStatuses: liveExtensionStatuses,
-            gitBranch: (liveGitBranch = typeof gitStatus === "object" && gitStatus.branch !== undefined
-              ? gitStatus.branch
-              : footerData.getGitBranch()),
-            gitStatus,
             pending: ctx.hasPendingMessages(),
             totals,
             sessionWindows: provider === "openai-codex" ? codexDailyUsage.decorate(limits) : limits,
@@ -527,8 +479,6 @@ export default function statusline(
       else ctx.ui.setFooter(undefined);
     }
     syncTick();
-    syncGitTick(ctx);
-    void refreshGit(ctx);
     requestRender?.();
   };
 
@@ -537,11 +487,11 @@ export default function statusline(
     const previewCapability = ctx.model?.provider ? providers.capabilities[ctx.model.provider] : undefined;
     // Live snapshot of the current session, fed to the in-app preview so it shows exactly what the
     // footer will look like under the DRAFT settings (cwd, model, context, quota, reset countdowns).
-    // Reads the draft (not the committed settings) so toggling extras like cost / branch /
+    // Reads the draft (not the committed settings) so toggling extras like cost /
     // pending is visible before saving — the preview is a live reflection of the draft.
     const currentPreviewContext = (draft: StatuslineSettings): ResolutionContext => {
       // Mirror the footer's own render inputs so the "current" preview is byte-identical to the
-      // live main line under the draft settings (git HUD, cost, quota, theme).
+      // live main line under the draft settings (cost, quota, theme).
       const totals = draft.extras.cost ? sessionTotals(ctx) : undefined;
       return {
         capability: previewCapability,
@@ -555,8 +505,6 @@ export default function statusline(
           contextUsage: ctx.getContextUsage() ?? undefined,
           extensionStatuses: liveExtensionStatuses,
           sessionWindows: limits,
-          gitBranch: liveGitBranch,
-          gitStatus,
           pending: ctx.hasPendingMessages(),
           totals,
         },
@@ -660,7 +608,6 @@ export default function statusline(
           ? codexCacheScope ? providerUsageCache.getFresh(provider, undefined, codexCacheScope) : undefined
           : providerUsageCache.getFresh(provider))?.limits ?? [];
     }
-    gitStatus = undefined;
     liveExtensionStatuses = [];
     // Saved providers may not be available in this process yet. Keep their last fresh cross-session
     // snapshot visible while a session that can authenticate them refreshes it.
@@ -694,8 +641,6 @@ export default function statusline(
       void refreshAnthropicLimits(ctx, epoch).then((next) => { if (!next.length) scheduleAnthropicRetry(ctx, 0, epoch); });
       void refreshCodexLimits(ctx, epoch);
     }
-    syncGitTick(ctx, epoch);
-    await refreshGit(ctx, epoch);
   });
 
   pi.on("session_shutdown", () => {
@@ -705,7 +650,6 @@ export default function statusline(
     progressMultiplexer?.setExternal(false);
     disposeProgressMultiplexer();
     stopTick();
-    stopGitTick();
     stopAnthropicRetry();
     providerRefresh?.stop();
     liveExtensionStatuses = [];
@@ -713,7 +657,6 @@ export default function statusline(
 
   pi.on("turn_end", async (_event, ctx) => {
     void refreshCodexLimits(ctx);
-    await refreshGit(ctx);
     requestRender?.();
   });
 

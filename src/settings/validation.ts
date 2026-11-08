@@ -311,7 +311,6 @@ function parseSeparators(value: unknown): StatuslineSettings["separators"] {
   const sep = (v: unknown, d: string): string => (v === undefined || v === null ? d : sanitizeDisplayString(v));
   return {
     main: sep(input.main, DEFAULT_STATUSLINE_SETTINGS.separators.main),
-    projectGit: sep(input.projectGit, DEFAULT_STATUSLINE_SETTINGS.separators.projectGit),
     window: sep(input.window, " | "),
     provider: sep(input.provider, "\n"),
     iconLabel: sep(input.iconLabel, ""),
@@ -416,7 +415,6 @@ function parseExtras(value: unknown): StatuslineSettings["extras"] {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const bool = (v: unknown, d: boolean): boolean => typeof v === "boolean" ? v : d;
   return {
-    branch: bool(input.branch, true),
     cost: bool(input.cost, false),
     pending: bool(input.pending, false),
   };

@@ -344,7 +344,7 @@ test("display screen exposes working controls and omits inert settings", () => {
     ...Object.keys(DEFAULT_STATUSLINE_SETTINGS.segments).map((key) => `segments.${key}`),
     ...Object.keys(DEFAULT_STATUSLINE_SETTINGS.extras).map((key) => `extras.${key}`),
     "layout.segmentOrder.project", "layout.narrowPriority.project",
-    "separators.main", "separators.projectGit", "separators.padding",
+    "separators.main", "separators.padding",
     "separators.spacingBefore", "separators.spacingAfter", "separators.trailingSpacing",
     ...Object.keys(DEFAULT_STATUSLINE_SETTINGS.bars).map((key) => `bars.${key}`),
     ...Object.keys(DEFAULT_STATUSLINE_SETTINGS.thresholds).map((key) => `thresholds.${key}`),

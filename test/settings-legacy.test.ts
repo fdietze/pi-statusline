@@ -29,7 +29,6 @@ test("mergeSettings: partial/missing fields fall back to defaults", () => {
   const result = mergeSettings({ footerEnabled: false, extras: { cost: true } });
   assert.equal(result.footerEnabled, false);
   assert.equal(result.extras.cost, true);
-  assert.equal(result.extras.branch, DEFAULT_SETTINGS.extras.branch);
   assert.deepEqual(result.segments, DEFAULT_SETTINGS.segments);
   assert.deepEqual(result.providerTracking, DEFAULT_SETTINGS.providerTracking);
 });
@@ -52,8 +51,8 @@ test("mergeSettings: invalid types coerced to defaults", () => {
   // segment invalid → default
   assert.equal(result.segments.session, DEFAULT_SETTINGS.segments.session);
   assert.equal(result.segments.project, DEFAULT_SETTINGS.segments.project);
-  // extras: invalid branch → default, valid nerdFont kept
-  assert.equal(result.extras.branch, DEFAULT_SETTINGS.extras.branch);
+  // extras: the removed branch toggle is ignored, valid nerdFont kept
+  assert.equal("branch" in result.extras, false);
   assert.equal(result.extras.nerdFont, false);
   // providerTracking: invalid enabled → default true
   assert.equal(result.providerTracking.enabled, true);

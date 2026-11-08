@@ -60,7 +60,6 @@ test("validation: valid parse - full valid doc round-trips", () => {
     },
     separators: {
       main: " · ",
-      projectGit: " ",
       window: " | ",
       provider: "\n",
       iconLabel: "",
@@ -233,11 +232,11 @@ test("validation: invalid - impossible order/width/interval normalized", () => {
 
 test("validation: hostile input - control chars stripped from display strings", () => {
   const result = parseStatuslineSettings({
-    separators: { main: "a\x00b\x1fc\x7f", projectGit: "\x0b\x0c" },
+    separators: { main: "a\x00b\x1fc\x7f", padding: "\x0b\x0c" },
     icons: { symbols: { test: "x\x01y" } },
   });
   assert.equal(result.settings.separators.main, "abc");
-  assert.equal(result.settings.separators.projectGit, "");
+  assert.equal(result.settings.separators.padding, "");
   assert.equal(result.settings.icons.symbols.test, "xy");
 });
 
@@ -366,7 +365,7 @@ test("validation: future version - returns readOnly true and unchanged", () => {
     enabled: false,
     providers: { enabled: false, order: [], defaults: {}, records: {} },
     layout: { providerRows: "inline", placement: "above", maxWidth: 100, segmentOrder: [], narrowPriority: [] },
-    separators: { main: "|", projectGit: "", window: "", provider: "", iconLabel: "", labelValue: "", spacingBefore: 0, spacingAfter: 0, trailingSpacing: 0, padding: "", preset: "Custom" },
+    separators: { main: "|", window: "", provider: "", iconLabel: "", labelValue: "", spacingBefore: 0, spacingAfter: 0, trailingSpacing: 0, padding: "", preset: "Custom" },
     segments: { project: false, model: false, effort: false, context: false, session: false, throughput: false, time: false },
     bars: { width: 20, fill: "#", empty: "-", capLeft: "[", capRight: "]", showPercent: false, style: "block", truecolor: false, warnAt: 50, critAt: 75 },
     thresholds: { contextWarn: 50, contextCrit: 75 },
@@ -407,15 +406,17 @@ test("validation: hostile provider key yields a single sanitized record", () => 
   assert.ok((result.settings.providers.records.evil as unknown as { __unknown?: Record<string, unknown> }).__unknown?.customField);
 });
 
-test("validation: extras parses booleans and falls back to parity defaults", () => {
-  const valid = parseStatuslineSettings({ extras: { branch: false, cost: true, sessionElapsed: true, lastTurn: true, pending: true } });
-  assert.deepEqual(valid.settings.extras, { branch: false, cost: true, pending: true });
+test("validation: extras parses booleans, ignores removed toggles, and falls back to defaults", () => {
+  // Removed toggles (branch, sessionElapsed, lastTurn) and the projectGit separator from older saves load without error and are dropped.
+  const valid = parseStatuslineSettings({ extras: { branch: true, cost: true, sessionElapsed: true, lastTurn: true, pending: true }, separators: { projectGit: " > " } });
+  assert.deepEqual(valid.settings.extras, { cost: true, pending: true });
+  assert.equal("projectGit" in valid.settings.separators, false);
 
-  // Bad types fall back to the parity defaults (branch true, rest false).
+  // Bad types fall back to the defaults (all off).
   const bad = parseStatuslineSettings({ extras: { branch: "yes", cost: 1, sessionElapsed: null, lastTurn: undefined, pending: "true" } });
-  assert.deepEqual(bad.settings.extras, { branch: true, cost: false, pending: false });
+  assert.deepEqual(bad.settings.extras, { cost: false, pending: false });
 
-  // Missing extras group yields the same parity defaults.
+  // Missing extras group yields the same defaults.
   assert.deepEqual(parseStatuslineSettings({}).settings.extras, DEFAULT_STATUSLINE_SETTINGS.extras);
 });
 test("validation: sparse provider missing-data and refresh overrides are bounded and preserved", () => {
@@ -466,5 +467,5 @@ test("saved settings naming removed segments and extras still load", () => {
   assert.deepEqual(result.settings.layout.segmentOrder, ["model", "project"]);
   assert.deepEqual(result.settings.layout.narrowPriority, ["project"]);
   for (const id of ["effort", "throughput", "time"]) assert.equal(id in result.settings.segments, false, id);
-  assert.deepEqual(result.settings.extras, { branch: true, cost: true, pending: false });
+  assert.deepEqual(result.settings.extras, { cost: true, pending: false });
 });

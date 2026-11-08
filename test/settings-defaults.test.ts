@@ -18,9 +18,8 @@ test("defaults: DEFAULT_STATUSLINE_SETTINGS has expected shape and version", () 
   assert.ok(DEFAULT_STATUSLINE_SETTINGS.preview);
 });
 
-test("defaults: extras reproduces legacy feature-parity defaults", () => {
+test("defaults: extras are all off", () => {
   assert.deepEqual(DEFAULT_STATUSLINE_SETTINGS.extras, {
-    branch: true,
     cost: false,
     pending: false,
   });

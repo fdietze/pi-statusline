@@ -18,14 +18,13 @@ type Row = SeparatorsScreenRow & (
 );
 
 const SEGMENT_LABELS: Record<SegmentId, string> = {
-  project: "Project / Git",
+  project: "Project",
   model: "Model",
   extensions: "Extension statuses",
   context: "Context",
   session: "Session quota",
 };
 const EXTRA_LABELS = {
-  branch: "Git branch",
   cost: "Model session cost",
   pending: "Pending indicator",
 } as const;
@@ -47,7 +46,6 @@ function rows(draft: StatuslineSettings): Row[] {
   draft.layout.narrowPriority.forEach((id, index) => result.push({ id: `layout.narrowPriority.${id}`, label: `Narrow priority ${index + 1}: ${SEGMENT_LABELS[id]}`, kind: "order", field: "narrowPriority", index }));
   for (const [field, label] of [
     ["main", "Main separator"],
-    ["projectGit", "Project / Git separator"],
     ["padding", "Separator padding"],
   ] as const) result.push({ id: `separators.${field}`, label: `${label}: ${shown(draft.separators[field])}`, kind: "text", group: "separators", field });
   for (const [field, label] of [

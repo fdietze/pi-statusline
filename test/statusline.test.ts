@@ -17,21 +17,21 @@ let cacheNumber = 0;
 const testCache = () => new ProviderUsageCache(join(cacheRoot, String(cacheNumber++)));
 after(() => rmSync(cacheRoot, { recursive: true, force: true }));
 
-test("runs no one-second timer without reset countdowns and stops polling on dispose", async () => {
+test("runs no one-second timer without reset countdowns and never spawns a process", async () => {
   const handlers = new Map<string, (...args: any[]) => unknown>();
   let footer: { dispose?: () => void } | undefined;
   const intervals: number[] = [];
-  let cleared = 0;
+  let execCount = 0;
   const originalSetInterval = globalThis.setInterval;
   const originalClearInterval = globalThis.clearInterval;
   globalThis.setInterval = ((_: () => void, ms: number) => { intervals.push(ms); return intervals.length; }) as typeof setInterval;
-  globalThis.clearInterval = ((_: ReturnType<typeof setInterval>) => { cleared++; }) as typeof clearInterval;
+  globalThis.clearInterval = (() => {}) as typeof clearInterval;
   try {
     const pi = {
       on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
       registerCommand: () => {},
       getThinkingLevel: () => "off",
-      exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+      exec: async () => { execCount++; return { code: 0, stdout: "", stderr: "" }; },
     } as never;
     const ctx = {
       cwd: process.cwd(),
@@ -51,10 +51,11 @@ test("runs no one-second timer without reset countdowns and stops polling on dis
     await handlers.get("session_start")!({}, ctx);
     assert.equal(handlers.has("turn_start"), false);
     assert.equal(handlers.has("message_update"), false);
-    // Energy: only 10 s polls run; nothing ticks per second without a reset countdown.
+    // Energy: nothing ticks per second without a reset countdown.
     assert.deepEqual(intervals.filter((ms) => ms < 10_000), []);
+    await handlers.get("turn_end")!({}, ctx);
+    assert.equal(execCount, 0, "the footer runs no git (or any other) process");
     footer?.dispose?.();
-    assert.ok(cleared >= 1, "dispose stops the git poll");
   } finally {
     globalThis.setInterval = originalSetInterval;
     globalThis.clearInterval = originalClearInterval;
@@ -115,6 +116,8 @@ test("wakes when the shown countdown changes and never while no countdown is upc
 
     statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
     await handlers.get("session_start")!({}, ctx);
+    // Let the startup provider refresh settle; its cache lock arms a 5 s proper-lockfile update timer until released.
+    await new Promise<void>((resolve) => setImmediate(resolve));
     assert.deepEqual(countdownTimers(), [], "no countdown, no wake-up");
 
     // 60 min 30 s left: the shown "1h1m" drops to "1h" in 30 s, then every 60 s.
@@ -410,8 +413,9 @@ test("renders emoji segments with themed semantic colors", async () => {
   await handlers.get("session_start")!({}, ctx);
   const initial = footer!.render(500)[0]!;
   for (const label of ["🪟 </muted><success>55.0%/200K"]) assert.ok(initial.includes(label));
-  assert.ok(initial.includes("📁 pi-statusline</muted><dim> > </dim><accent>feature/statusline</accent> <warning>● 2</warning> <warning>↓1</warning> <accent>↑2</accent>"));
-  assert.deepEqual(execCalls[0], ["git", ["--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z"], { cwd: process.cwd(), timeout: 2_000 }]);
+  // The project segment is host + folder only; no Git HUD and no git process.
+  assert.match(initial, /📁 pi-statusline<\/muted><dim> > <\/dim>/);
+  assert.deepEqual(execCalls, []);
   assert.equal(initial.includes("5h"), false);
   assert.equal(initial.includes("wk"), false);
   await handlers.get("turn_end")!({ message: { role: "assistant", usage: { input: 850, output: 74 } } }, ctx);
@@ -1159,62 +1163,6 @@ test("an old-account Codex refresh cannot retain or restore stale provider healt
   }
 });
 
-test("refreshes git status on an interval independent of turn activity", async () => {
-  const handlers = new Map<string, (...args: any[]) => unknown>();
-  let intervalCallback: (() => void) | undefined;
-  let intervalMs: number | undefined;
-  const originalSetInterval = globalThis.setInterval;
-  const originalClearInterval = globalThis.clearInterval;
-  globalThis.setInterval = ((fn: () => void, ms: number) => {
-    intervalCallback = fn;
-    intervalMs = ms;
-    return 1;
-  }) as typeof setInterval;
-  globalThis.clearInterval = (() => {}) as typeof clearInterval;
-  let execCount = 0;
-  try {
-    const pi = {
-      on: (event: string, handler: (...args: any[]) => unknown) => handlers.set(event, handler),
-      registerCommand: () => {},
-      getThinkingLevel: () => "off",
-      exec: async () => {
-        execCount++;
-        return { code: 0, stdout: "", stderr: "" };
-      },
-    } as never;
-    const ctx = {
-      cwd: process.cwd(),
-      ui: {
-        setFooter: (factory: any) => {
-          factory?.(
-            { requestRender: () => {} },
-            { fg: (_: string, text: string) => text },
-            { getGitBranch: () => "main", getAvailableProviderCount: () => 1, onBranchChange: () => () => {} },
-          );
-        },
-        notify: () => {},
-      },
-    } as never;
-
-    statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
-    await handlers.get("session_start")!({}, ctx);
-    const countAfterStart = execCount;
-    assert.ok(intervalCallback, "expected a periodic git refresh interval");
-    assert.equal(intervalMs, 10_000);
-
-    intervalCallback!();
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(execCount, countAfterStart + 1);
-
-    intervalCallback!();
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(execCount, countAfterStart + 2);
-  } finally {
-    globalThis.setInterval = originalSetInterval;
-    globalThis.clearInterval = originalClearInterval;
-  }
-});
-
 test("navigates into Display and Icons via the command handler; clean Escape closes without a dialog", async () => {
   const h = settingsHarness();
   await h.handlers.get("session_start")!({}, h.ctx);
@@ -1227,7 +1175,7 @@ test("navigates into Display and Icons via the command handler; clean Escape clo
   const sepLines = h.component.render(100);
   assert.ok(sepLines.some((line) => line.includes("Display")), `expected Display header, got: ${JSON.stringify(sepLines)}`);
   // Rows are prefixed with ">" (selected) or " " — text-based, no ANSI color dependency.
-  assert.ok(sepLines.some((line) => line.includes("> Project / Git visibility")), "selected-row indicator must be plain text");
+  assert.ok(sepLines.some((line) => line.includes("> Project visibility")), "selected-row indicator must be plain text");
 
   // Escape back to root.
   input(K.escape);

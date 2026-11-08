@@ -1,13 +1,13 @@
 # pi-statusline
 
-A personal fork of [futile/pi-statusline](https://github.com/futile/pi-statusline/tree/feat/extension-statuses), with the host name before the project and a prominent session name on the first footer row.
+A personal fork of [futile/pi-statusline](https://github.com/futile/pi-statusline/tree/feat/extension-statuses), with the host name before the project, no Git HUD (the footer spawns no processes), and a prominent session name on the first footer row.
 
 A configurable, single-line footer for [pi](https://github.com/earendil-works/pi-mono). It uses the active pi theme for semantic colors, shows only the data available for the active model and provider, includes statuses published by other extensions, and drops lower-priority segments before truncating at narrow widths.
 
 ```text
-📁 pi-statusline  main ✓ > 🤖 qwen36-coder@medium > 🪟  55.0%/1.0M
-📁 pi-statusline  main ↑2 > 🤖 claude-sonnet-5@high > FAST > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h
-📁 pi-statusline  main ✓ > 🤖 gpt-5@high > 🪟  12.0%/400K
+📁 pi-statusline > 🤖 qwen36-coder@medium > 🪟  55.0%/1.0M
+📁 pi-statusline > 🤖 claude-sonnet-5@high > FAST > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h
+📁 pi-statusline > 🤖 gpt-5@high > 🪟  12.0%/400K
 anthropic 5h ╺━━━━━━━━━━╸ 100% ↻1h44m >wk ╺──────────╴ 12% ↻6d5h
 openai-codex wk ╺━━━━──────╴ 38% ↻4d14h ≈3pp over
 zai 5h ╶──────────╴ 0% >wk ╺──────────╴ 5% ↻2d19h
@@ -41,13 +41,11 @@ At full width, segments render in the order below. When the line no longer fits,
 
 | Segment | Default | Contents |
 |---|---:|---|
-| `project` | on | Current directory name and compact Git HUD |
+| `project` | on | Host name and current directory name |
 | `model` | on | Active model id and thinking level as `model@effort`; non-reasoning models show only the id |
 | `extensions` | on | Statuses published through Pi's `ctx.ui.setStatus()`, preserving publisher order and styling |
 | `context` | on | Context percent and window; green below 200K tokens, orange from 200K, red from 400K (the 80%/95% percent thresholds also apply to smaller windows) |
 | `session` | on | Available subscription usage windows and reset countdowns; Codex labels come from the account's current limits |
-
-The Git HUD defaults on inside repositories: `main ✓`. It shows `↓` incoming/behind and `↑` outgoing/ahead counts; `✓` means neither is pending. Local working-tree changes appear as `● N`. Colors use the active theme's accent, success, warning, and error roles.
 
 Extension statuses are read from Pi's footer data on every render, so a `ctx.ui.setStatus()` update appears without coupling this footer to a particular extension. Multiple statuses retain Pi's map order and any ANSI styling supplied by their publishers. They are dropped only after the other default narrow-priority segments when the terminal cannot fit them.
 
@@ -66,7 +64,7 @@ The app has three sections:
 | Section | Controls |
 |---|---|
 | **Statusline & Providers** | Master footer and provider-tracking toggles; enable, reorder, refresh, and configure each provider's active-model segments and available quota windows. |
-| **Display** | Segment visibility and extras (Git HUD, cost, pending); segment order and narrow-drop priority; live separators/spacing/padding; bar style, characters, width, truecolor and thresholds; context warning/critical thresholds. |
+| **Display** | Segment visibility and extras (cost, pending); segment order and narrow-drop priority; live separators/spacing/padding; bar style, characters, width, truecolor and thresholds; context warning/critical thresholds. |
 | **Icons** | Global icon style (emoji / unicode / ascii / nerd font / minimal / none), rendered symbol overrides, and per-provider icons. |
 
 The app opens a draft cloned from your live settings, renders a live preview through the real footer renderer, and writes only on **Save**. Saving is persist-first: the file is written before the live settings are swapped, so a failed write changes nothing. **Escape** on a dirty draft offers Save / Discard / Cancel; a clean draft closes immediately. Root, section, and provider resets update only the draft until you save.
