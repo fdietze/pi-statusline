@@ -15,6 +15,7 @@ import { msUntilResetCountdownChange } from "../src/format.ts";
 import { parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage, type RateLimits, type RateLimitWindow } from "../src/ratelimit.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
 import { ProviderRefreshCoordinator, RateLimitedError, type ProviderAdapter } from "../src/providers.ts";
+import { providersToPoll } from "../src/provider-polling.ts";
 import { renderMainLine, renderProviderRows, providerHasRow, type ExtensionStatus, type ProviderRowSource } from "../src/render.ts";
 import {
   DEFAULT_STATUSLINE_CONFIG_PATH,
@@ -479,6 +480,7 @@ export default function statusline(
       else ctx.ui.setFooter(undefined);
     }
     syncTick();
+    providerRefresh?.start(providersToPoll(settings, ctx.model?.provider));
     requestRender?.();
   };
 
@@ -636,7 +638,7 @@ export default function statusline(
     }
     if (settings.enabled) installFooter(ctx, epoch);
     extensionEvents?.emit(AGENT_ACTIVITY_REQUEST_EVENT, { version: 1 });
-    providerRefresh.start(trackedProviders);
+    providerRefresh.start(providersToPoll(settings, ctx.model?.provider));
     if (!providers.includes(ctx.model?.provider ?? "")) {
       void refreshAnthropicLimits(ctx, epoch).then((next) => { if (!next.length) scheduleAnthropicRetry(ctx, 0, epoch); });
       void refreshCodexLimits(ctx, epoch);
@@ -698,6 +700,7 @@ export default function statusline(
     codexProviderRequestScope = undefined;
     limits = isAnthropicOAuth(ctx) ? restoreAnthropicLimits(ctx) : [];
     syncTick();
+    providerRefresh?.start(providersToPoll(settings, ctx.model?.provider));
     requestRender?.();
     stopAnthropicRetry();
     void refreshAnthropicLimits(ctx).then((next) => { if (!next.length) scheduleAnthropicRetry(ctx); });

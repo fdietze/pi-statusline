@@ -7,6 +7,8 @@ import { initTheme } from "@earendil-works/pi-coding-agent";
 import statusline from "../extensions/statusline.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
 import { DEFAULT_STATUSLINE_SETTINGS } from "../src/settings/defaults.ts";
+import { PROVIDER_REFRESH_MS } from "../src/providers.ts";
+import { CURRENT_VERSION } from "../src/settings/schema.ts";
 
 // The interactive settings menu resolves colors from pi's global theme singleton
 // (getSettingsListTheme() throws "Theme not initialized" otherwise). Real pi sessions
@@ -1292,4 +1294,45 @@ test("settings overlay re-reads renamed and cleared session names on each previe
   assert.equal(h.component.render(100).join("\n").includes("Renamed overlay"), false);
   h.component.dispose?.();
   await h.handlers.get("session_shutdown")!({ reason: "quit" });
+});
+
+test("provider polling runs only while a provider row or session quota is shown, following saved settings", async () => {
+  const originalSetInterval = globalThis.setInterval;
+  const originalClearInterval = globalThis.clearInterval;
+  const polls = new Set<number>();
+  let nextId = 0;
+  globalThis.setInterval = ((_: () => void, ms: number) => {
+    const id = ++nextId;
+    if (ms === PROVIDER_REFRESH_MS) polls.add(id);
+    return id;
+  }) as unknown as typeof setInterval;
+  globalThis.clearInterval = ((id: number) => { polls.delete(id); }) as unknown as typeof clearInterval;
+  try {
+    const savePath = join(cacheRoot, "polling-flow.json");
+    writeFileSync(savePath, JSON.stringify({ version: CURRENT_VERSION, segments: { session: false }, providers: { enabled: false } }));
+    const h = settingsHarness({ settingsPath: savePath });
+    await h.handlers.get("session_start")!({}, h.ctx);
+    assert.equal(polls.size, 0, "no provider row and no session quota: no poll timer");
+
+    const toggleTracking = async () => {
+      await h.commandDef.handler("", h.ctx);
+      const input = h.component.handleInput!;
+      input(K.enter);  // open Providers
+      input(K.down);   // Provider tracking
+      input(K.space);  // toggle
+      input(K.escape);
+      input(K.escape);
+      input(K.save);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    };
+    await toggleTracking();
+    assert.equal(JSON.parse(readFileSync(savePath, "utf8")).providers.enabled, true);
+    assert.equal(polls.size, 1, "enabling provider rows starts polling");
+    await toggleTracking();
+    assert.equal(polls.size, 0, "disabling provider rows stops polling");
+    h.handlers.get("session_shutdown")?.({ reason: "quit" });
+  } finally {
+    globalThis.setInterval = originalSetInterval;
+    globalThis.clearInterval = originalClearInterval;
+  }
 });

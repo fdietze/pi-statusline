@@ -111,3 +111,34 @@ test("hides stale results and reports specific reasons for providers without an 
   assert.equal(sanitizedReason("zai"), "usage unavailable");
   assert.equal(sanitizedReason("openrouter"), "usage requires an OpenRouter management key pi doesn't manage");
 });
+
+test("start polls exactly the given providers: idempotent for the same list, an empty list stops", async () => {
+  const originalSetInterval = globalThis.setInterval;
+  const originalClearInterval = globalThis.clearInterval;
+  const live = new Set<number>();
+  let nextId = 0;
+  globalThis.setInterval = (() => { live.add(++nextId); return nextId; }) as unknown as typeof setInterval;
+  globalThis.clearInterval = ((id: number) => { live.delete(id); }) as unknown as typeof clearInterval;
+  try {
+    let refreshes = 0;
+    const coordinator = new ProviderRefreshCoordinator(new Map([
+      ["anthropic", { refresh: async () => { refreshes++; return usage; } }],
+    ]), () => {}, 50, 10_000);
+    coordinator.start([]);
+    assert.equal(live.size, 0, "nothing to show, no timer");
+    coordinator.start(["anthropic"]);
+    coordinator.start(["anthropic"]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(live.size, 1);
+    assert.equal(refreshes, 1, "an unchanged list neither restarts nor refetches");
+    coordinator.start([]);
+    assert.equal(live.size, 0, "an empty list stops polling");
+    coordinator.start(["anthropic"]);
+    assert.equal(live.size, 1, "polling resumes after a stop");
+    coordinator.stop();
+    assert.equal(live.size, 0);
+  } finally {
+    globalThis.setInterval = originalSetInterval;
+    globalThis.clearInterval = originalClearInterval;
+  }
+});

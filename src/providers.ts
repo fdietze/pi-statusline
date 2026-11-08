@@ -38,6 +38,7 @@ export function sanitizedReason(provider: string, error?: unknown): string {
 export class ProviderRefreshCoordinator {
   private readonly health = new Map<string, ProviderHealth>();
   private timer: ReturnType<typeof setInterval> | undefined;
+  private polled = "";
   private readonly running = new Set<string>();
 
   constructor(
@@ -57,8 +58,14 @@ export class ProviderRefreshCoordinator {
   private readonly cadenceMs: number;
   private readonly maxAgeMs: number;
 
+  /** Poll exactly `providers`: refresh them now and then every cadence. Idempotent for an
+   *  unchanged list (no restart, no extra fetch); an empty list stops polling. */
   start(providers: readonly string[]) {
+    const polled = providers.join("\0");
+    if (this.timer && polled === this.polled) return;
     this.stop();
+    if (!providers.length) return;
+    this.polled = polled;
     for (const provider of providers) void this.refresh(provider);
     this.timer = setInterval(() => { for (const provider of providers) void this.refresh(provider); }, this.cadenceMs);
     this.timer.unref?.();
@@ -67,6 +74,7 @@ export class ProviderRefreshCoordinator {
   stop() {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    this.polled = "";
   }
 
   get(provider: string, now = Date.now()): ProviderHealth {
