@@ -1,6 +1,14 @@
 import type { RateLimits } from "./ratelimit.ts";
 
-export const PROVIDER_REFRESH_MS = 10_000;
+// One cadence for every provider (including Anthropic's 429-prone OAuth usage endpoint): quotas
+// move slowly, and a rare wake-up lets the CPU stay in deep sleep. One missed poll still fits
+// within PROVIDER_MAX_AGE_MS (2 x 120 s < 300 s), so a single failure never hides a row.
+export const PROVIDER_REFRESH_MS = 120_000;
+// A cached result counts as current for slightly less than one poll cadence. The cache stamps
+// updatedAt when a fetch finishes, so the next poll (one cadence after the fetch started) sees an
+// age just under PROVIDER_REFRESH_MS; an equal window would skip every other poll. The margin
+// absorbs fetch latency and timer jitter.
+export const PROVIDER_CACHE_REFRESH_MS = PROVIDER_REFRESH_MS - 10_000;
 // Keep the last quota during a brief provider/API outage instead of flickering to unavailable.
 export const PROVIDER_MAX_AGE_MS = 5 * 60_000;
 

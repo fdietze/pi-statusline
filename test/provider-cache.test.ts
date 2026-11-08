@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
-import { RateLimitedError } from "../src/providers.ts";
+import { PROVIDER_REFRESH_MS, RateLimitedError } from "../src/providers.ts";
 
 const usage = { limits: [{ label: "5h", used: 0.2 }] };
 type Usage = typeof usage;
@@ -153,20 +153,18 @@ test("shares one 429 backoff across cache instances (sessions)", async () => {
   }
 });
 
-test("honors a per-provider refresh cadence longer than the default", async () => {
+test("every scheduled poll fetches despite fetch latency (the cache window is shorter than the cadence)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-statusline-cache-"));
   let clock = 1_000_000;
   let fetches = 0;
-  const cache = new ProviderUsageCache(dir, 10_000, 10_000, () => clock, { anthropic: 30_000 });
+  const cache = new ProviderUsageCache(dir, undefined, undefined, () => clock);
   try {
-    await cache.refresh("anthropic", async () => { fetches++; return usage; });
-    assert.equal(fetches, 1);
-    clock += 20_000; // past the default 10s, under anthropic's 30s
-    await cache.refresh("anthropic", async () => { fetches++; return usage; });
-    assert.equal(fetches, 1); // anthropic cadence not elapsed
-    clock += 11_000; // 31s total, past anthropic's 30s
-    await cache.refresh("anthropic", async () => { fetches++; return usage; });
-    assert.equal(fetches, 2);
+    for (let tick = 0; tick < 4; tick++) {
+      const pollAt = 1_000_000 + tick * PROVIDER_REFRESH_MS + 3; // timer jitter
+      clock = pollAt;
+      await cache.refresh("anthropic", async () => { fetches++; clock += 400; return usage; }); // fetch latency
+    }
+    assert.equal(fetches, 4);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

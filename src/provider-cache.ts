@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { lockSync } from "proper-lockfile";
 import { parseStoredRateLimits } from "./ratelimit.ts";
-import { PROVIDER_MAX_AGE_MS, PROVIDER_REFRESH_MS, RateLimitedError, type ProviderUsage } from "./providers.ts";
+import { PROVIDER_CACHE_REFRESH_MS, PROVIDER_MAX_AGE_MS, RateLimitedError, type ProviderUsage } from "./providers.ts";
 
 export const PROVIDER_CACHE_DIR = join(homedir(), ".pi", "agent", "statusline", "provider-usage");
 const LOCK_MS = 10_000;
@@ -25,24 +25,17 @@ export class ProviderUsageCache {
   private readonly refreshMs: number;
   private readonly lockMs: number;
   private readonly now: () => number;
-  private readonly refreshMsOverrides: Record<string, number>;
 
   constructor(
     dir = PROVIDER_CACHE_DIR,
-    refreshMs = PROVIDER_REFRESH_MS,
+    refreshMs = PROVIDER_CACHE_REFRESH_MS,
     lockMs = LOCK_MS,
     now = () => Date.now(),
-    refreshMsOverrides: Record<string, number> = {},
   ) {
     this.dir = dir;
     this.refreshMs = refreshMs;
     this.lockMs = lockMs;
     this.now = now;
-    this.refreshMsOverrides = refreshMsOverrides;
-  }
-
-  private refreshMsFor(provider: string): number {
-    return this.refreshMsOverrides[provider] ?? this.refreshMs;
   }
 
   get(provider: string, scope?: string): CachedUsage | undefined {
@@ -71,13 +64,12 @@ export class ProviderUsageCache {
   }
 
   async refresh(provider: string, fetchUsage: () => Promise<ProviderUsage | undefined>, scope?: string): Promise<ProviderUsage | undefined> {
-    const refreshMs = this.refreshMsFor(provider);
     const before = this.get(provider, scope);
     // Honor an active 429 backoff: don't hit the endpoint again until it expires.
     if (before?.retryAt !== undefined && this.now() < before.retryAt) {
       return before.limits.length ? { limits: before.limits } : undefined;
     }
-    if (before?.limits.length && this.now() - before.updatedAt < refreshMs) {
+    if (before?.limits.length && this.now() - before.updatedAt < this.refreshMs) {
       return { limits: before.limits };
     }
     mkdirSync(this.dir, { recursive: true });
@@ -92,7 +84,7 @@ export class ProviderUsageCache {
       if (current?.retryAt !== undefined && this.now() < current.retryAt) {
         return current.limits.length ? { limits: current.limits } : undefined;
       }
-      if (current?.limits.length && this.now() - current.updatedAt < refreshMs) {
+      if (current?.limits.length && this.now() - current.updatedAt < this.refreshMs) {
         return { limits: current.limits };
       }
       try {

@@ -32,16 +32,13 @@ import { deriveCapability, type ProviderCapability } from "../src/settings/provi
 import type { RefreshHealth } from "../src/settings/refresh.ts";
 import type { StatuslineSettings } from "../src/settings/schema.ts";
 
-// Anthropic's OAuth usage endpoint (api.anthropic.com/api/oauth/usage) throttles hard and hands
-// out sticky 429s, so poll it less often than the 10s cadence the other providers share.
-const ANTHROPIC_REFRESH_MS = 30_000;
 // The host name is read once per process; the short label (before the first dot) identifies
 // the machine for local and SSH sessions alike.
 const HOSTNAME = hostname().split(".")[0];
 
 export default function statusline(
   pi: ExtensionAPI,
-  providerUsageCache = new ProviderUsageCache(undefined, undefined, undefined, undefined, { anthropic: ANTHROPIC_REFRESH_MS }),
+  providerUsageCache = new ProviderUsageCache(),
   settingsPath = DEFAULT_STATUSLINE_CONFIG_PATH,
   codexDailyUsage = new CodexDailyUsage(
     settingsPath === DEFAULT_STATUSLINE_CONFIG_PATH

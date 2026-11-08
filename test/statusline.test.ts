@@ -1100,7 +1100,7 @@ test("an old-account Codex refresh cannot retain or restore stale provider healt
     await handlers.get("before_provider_request")!({}, ctx);
     assert.ok(footer!.render(500).join("\n").includes("20%"), "starting a request must not invalidate Codex quota");
 
-    for (const interval of intervals.values()) if (interval.ms === 10_000) interval.callback();
+    for (const interval of intervals.values()) if (interval.ms === PROVIDER_REFRESH_MS) interval.callback();
     await settle();
     assert.equal(accountAFetches, 2);
     const accountAToken = token()!;
@@ -1126,7 +1126,7 @@ test("an old-account Codex refresh cannot retain or restore stale provider healt
     }), { status: 200 }));
     await settle();
     await settle();
-    for (const interval of intervals.values()) if (interval.ms === 10_000) interval.callback();
+    for (const interval of intervals.values()) if (interval.ms === PROVIDER_REFRESH_MS) interval.callback();
     await settle();
     await settle();
 
@@ -1135,7 +1135,7 @@ test("an old-account Codex refresh cannot retain or restore stale provider healt
     assert.equal(lines.includes("20%"), false, lines);
 
     accountId = "acct_c";
-    for (const interval of intervals.values()) if (interval.ms === 10_000) interval.callback();
+    for (const interval of intervals.values()) if (interval.ms === PROVIDER_REFRESH_MS) interval.callback();
     await settle();
     await settle();
     lines = footer!.render(500).join("\n");

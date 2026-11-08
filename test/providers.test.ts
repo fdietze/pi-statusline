@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ProviderRefreshCoordinator, sanitizedReason } from "../src/providers.ts";
+import { PROVIDER_REFRESH_MS, ProviderRefreshCoordinator, sanitizedReason } from "../src/providers.ts";
 
 const usage = { limits: [{ label: "5h", used: 0.2 }] };
 
@@ -44,7 +44,8 @@ test("keeps default provider usage visible through missed refreshes", async () =
   ]), () => {});
   await coordinator.refresh("anthropic");
   const fresh = coordinator.get("anthropic");
-  assert.equal(coordinator.get("anthropic", fresh.updatedAt! + 30_000).state, "fresh");
+  // One missed poll: the last result is two cadences old by the next successful poll.
+  assert.equal(coordinator.get("anthropic", fresh.updatedAt! + 2 * PROVIDER_REFRESH_MS).state, "fresh");
 });
 
 test("keeps the last fresh usage through a transient refresh failure", async () => {
