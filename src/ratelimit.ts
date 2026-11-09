@@ -34,6 +34,22 @@ export function deriveRateLimitPace(window: RateLimitWindow, now: number): RateL
   };
 }
 
+const DAY_MS = 86_400_000;
+
+/**
+ * Percentage points of the window that remain per day until it resets: remaining / days left.
+ * Defined only while more than one day is left: the last day would just repeat the remaining
+ * share, and windows shorter than a day (5h) never qualify. Needs no window duration, so it
+ * works for every provider that reports a reset time.
+ */
+export function deriveDailyBudget(window: RateLimitWindow, now: number): number | undefined {
+  const { used, resetAt } = window;
+  if (resetAt === undefined || !Number.isFinite(resetAt) || !Number.isFinite(now)
+    || !Number.isFinite(used) || used < 0 || used > 1) return undefined;
+  const daysLeft = (resetAt - now) / DAY_MS;
+  return daysLeft > 1 ? (1 - used) * 100 / daysLeft : undefined;
+}
+
 const ANTHROPIC_WINDOWS = [
   ["five-hour", "5h", "anthropic-ratelimit-unified-5h-utilization"],
   ["seven-day", "wk", "anthropic-ratelimit-unified-7d-utilization"],

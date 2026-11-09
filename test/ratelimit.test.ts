@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deriveRateLimitPace, parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage } from "../src/ratelimit.ts";
+import { deriveDailyBudget, deriveRateLimitPace, parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage } from "../src/ratelimit.ts";
 
 const fixture = {
   "anthropic-ratelimit-unified-5h-utilization": "0.23",
@@ -79,6 +79,20 @@ test("derives approximate fixed-window pace and hides unusable boundaries", () =
   assert.equal(deriveRateLimitPace(window(0, 1), now)?.relation, "on-pace", "a fresh window still has a measurable pace");
   assert.equal(deriveRateLimitPace({ ...window(0.5), resetAt: now }, now), undefined, "expired window");
   assert.equal(deriveRateLimitPace({ label: "legacy", used: 0.5, resetAt: now + 1 }, now), undefined, "legacy cache has no duration");
+});
+
+test("daily budget: remaining points per remaining day, only while more than one day is left", () => {
+  const DAY = 86_400_000;
+  const now = 1_000_000;
+  const window = (used: number, days: number) => ({ label: "wk", used, resetAt: now + days * DAY });
+
+  assert.ok(Math.abs(deriveDailyBudget(window(0.41, 4.25), now)! - 59 / 4.25) < 1e-9);
+  assert.ok(Math.abs(deriveDailyBudget(window(0, 7), now)! - 100 / 7) < 1e-9, "a fresh week is an even 1/7 per day");
+  assert.equal(deriveDailyBudget(window(1, 3), now), 0, "nothing left");
+  assert.equal(deriveDailyBudget(window(0.2, 1), now), undefined, "last day would only repeat the remaining share");
+  assert.equal(deriveDailyBudget(window(0.2, 5 / 24), now), undefined, "5h window never qualifies");
+  assert.equal(deriveDailyBudget({ label: "wk", used: 0.2 }, now), undefined, "no reset time");
+  assert.equal(deriveDailyBudget(window(1.2, 3), now), undefined, "invalid usage");
 });
 
 test("parses Z.AI TOKENS_LIMIT windows, ordering the untouched/sooner-resetting one as 5h", () => {

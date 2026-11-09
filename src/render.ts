@@ -2,7 +2,7 @@ import { renderBar, DEFAULT_STOPS, type BarStyle, type ColorStops } from "./bar.
 import { composeSegments, createSegments, SEGMENT_ORDER } from "./segments.ts";
 import { deriveContext, deriveEffort, deriveModel, deriveProject, type ContextUsage } from "./derive.ts";
 import { formatResetCountdown } from "./format.ts";
-import { deriveRateLimitPace, type RateLimitWindow } from "./ratelimit.ts";
+import { deriveDailyBudget, deriveRateLimitPace, type RateLimitWindow } from "./ratelimit.ts";
 import type { ResetFormat, StatuslineSettings } from "./settings/schema.ts";
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { stripVTControlCharacters } from "node:util";
@@ -165,6 +165,11 @@ function formatReset(resetAt: number, format: ResetFormat, now: number): string 
   return formatResetCountdown(resetAt, now);
 }
 
+/** Whole points, one decimal below 1 so small amounts do not read as 0. */
+function formatPercentagePoints(points: number): string {
+  return points < 1 ? points.toFixed(1) : String(Math.round(points));
+}
+
 function renderSessionBar(settings: StatuslineSettings, provider: string | undefined, window: RateLimitWindow, theme: RenderTheme | undefined, now: number): string {
   const paint = (r: ThemeColor, text: string) => (theme?.fg ? theme.fg(r, text) : text);
   const display = resolveWindowDisplay(settings, provider, window);
@@ -181,11 +186,13 @@ function renderSessionBar(settings: StatuslineSettings, provider: string | undef
       `≈${pace.relation === "on-pace" ? pace.percentagePoints.toFixed(1) : Math.round(pace.percentagePoints)}pp ${pace.relation === "on-pace" ? "on pace" : pace.relation}`,
     )}`
     : "";
+  const dailyBudget = deriveDailyBudget(window, now);
+  const budgetText = dailyBudget === undefined ? "" : ` ${paint("muted", `≈${formatPercentagePoints(dailyBudget)}pp/d`)}`;
   const dailyPercentagePoints = window.dailyUsed === undefined ? undefined : window.dailyUsed * 100;
   const dailyText = dailyPercentagePoints !== undefined && Number.isFinite(dailyPercentagePoints) && dailyPercentagePoints >= 0
-    ? ` ${paint("muted", `≈${dailyPercentagePoints < 1 ? dailyPercentagePoints.toFixed(1) : Math.round(dailyPercentagePoints)}pp today`)}`
+    ? ` ${paint("muted", `≈${formatPercentagePoints(dailyPercentagePoints)}pp today`)}`
     : "";
-  return `${paint("muted", `${display.label} `)}${bar}${reset}${paceText}${dailyText}`;
+  return `${paint("muted", `${display.label} `)}${bar}${reset}${budgetText}${paceText}${dailyText}`;
 }
 
 /** One provider's data for a tracking row (caller pre-filters order/enabled/health). */

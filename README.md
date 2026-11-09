@@ -15,7 +15,7 @@ zai 5h ╶──────────╴ 0% >wk ╺────────�
 
 The first line is a local model, the second an Anthropic subscription (quota bars), the third an API-key provider. The last three lines are provider-tracking rows: every provider you select in `/statusline` (not just your active model) gets its own row with its own live usage, so you can compare available capacity across providers without switching. See [Provider tracking](#provider-tracking).
 
-Usage is a thin continuous line with rounded half-line ends and a dark-gray track. Its bright truecolor fill gives a restrained glow, moving smoothly from neon green through vivid orange to blood red as usage rises. Each provider-reported window includes a compact live reset countdown. When Codex also reports the window duration, the footer compares consumed usage with the elapsed share of the window and appends an approximate `over`, `under`, or measured `on pace` value such as `≈0.6pp on pace`; it does not show a per-day allowance.
+Usage is a thin continuous line with rounded half-line ends and a dark-gray track. Its bright truecolor fill gives a restrained glow, moving smoothly from neon green through vivid orange to blood red as usage rises. Each provider-reported window includes a compact live reset countdown. When Codex also reports the window duration, the footer compares consumed usage with the elapsed share of the window and appends an approximate `over`, `under`, or measured `on pace` value such as `≈0.6pp on pace`. While more than one day is left in a window, it also shows the remaining quota per remaining day, e.g. `≈14pp/d` (59% left, 4d6h to reset); the last day and windows shorter than a day omit it.
 
 ## Install and develop
 
