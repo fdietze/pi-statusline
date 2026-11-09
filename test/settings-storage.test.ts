@@ -162,27 +162,6 @@ test("storage: read future version -> readOnly true, returned unchanged", () => 
   }
 });
 
-test("storage: maxCacheAge below the floor is normalized on save", () => {
-  const dir = mkdtempSync(join(tmpdir(), "pi-statusline-storage-"));
-  const path = join(dir, "statusline.json");
-  try {
-    const settings = {
-      ...DEFAULT_STATUSLINE_SETTINGS,
-      providers: {
-        ...DEFAULT_STATUSLINE_SETTINGS.providers,
-        defaults: { ...DEFAULT_STATUSLINE_SETTINGS.providers.defaults, maxCacheAgeMs: 50 },
-      },
-    };
-    saveStatuslineSettings(settings, path);
-
-    const content = readFileSync(path, "utf8");
-    const parsed = JSON.parse(content);
-    assert.equal(parsed.providers.defaults.maxCacheAgeMs, 10000); // floor
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 test("storage: save refuses future version (readOnly)", () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-statusline-storage-"));
   const path = join(dir, "statusline.json");

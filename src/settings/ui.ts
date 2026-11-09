@@ -149,7 +149,7 @@ function routeProviderDetail(
   const draft = structuredClone(state.draft);
 
   if (row.type === "refresh-now" && forwards) {
-    return { state, action: "none", effect: requestProviderRefresh(draft, providerId, providers.capabilities[providerId], providers.activeProvider === providerId) };
+    return { state, action: "none", effect: requestProviderRefresh(draft, providerId, providers.capabilities[providerId]) };
   }
   if (row.type === "reset" && forwards) {
     resetProvider(draft, providerId);

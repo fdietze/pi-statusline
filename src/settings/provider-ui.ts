@@ -1,17 +1,11 @@
 import { createProviderConfig, createWindowConfig } from "./defaults.ts";
 import {
-  MIN_CACHE_AGE_MS,
-  resolveProviderMissingDataPolicy,
-  resolveProviderRefreshPolicy,
   resolveRefreshEligibility,
   type RefreshHealth,
-  type RefreshPolicy,
 } from "./refresh.ts";
 import type {
   ActiveModelToggle,
-  MissingDataPolicy,
   ProviderConfiguration,
-  ProviderRefreshOverrides,
   SegmentId,
   StatuslineSettings,
   WindowConfiguration,
@@ -38,8 +32,6 @@ export interface ProviderDetailView {
   displayMode: ProviderConfiguration["displayMode"];
   activeModel: ProviderConfiguration["activeModel"];
   providerIcon: StatuslineSettings["icons"]["providers"][string];
-  missingDataPolicy: MissingDataPolicy;
-  refresh: RefreshPolicy;
   refreshNowEligible: boolean;
   quotaAvailable: boolean;
   quotaWindows: Array<RateLimitWindow & { settings: WindowConfiguration }>;
@@ -130,12 +122,7 @@ export function buildProviderDetail(
     displayMode: effectiveRecord.displayMode,
     activeModel: structuredClone(effectiveRecord.activeModel),
     providerIcon: structuredClone(draft.icons.providers[providerId] ?? { mode: "default", value: "" }),
-    missingDataPolicy: resolveProviderMissingDataPolicy(draft, providerId),
-    refresh: resolveProviderRefreshPolicy(draft, providerId, capability),
-    refreshNowEligible: resolveRefreshEligibility(draft, providerId, capability, {
-      providerEnabled: row.enabled,
-      isActive: row.active,
-    }),
+    refreshNowEligible: resolveRefreshEligibility(draft, capability, row.enabled),
     quotaAvailable: capability.quotaSupport !== "none",
     quotaWindows,
   };
@@ -188,15 +175,6 @@ export function setProviderDisplayMode(
         record.activeModel[segment] = draft.segments[segment] ? "on" : "off";
       }
     }
-    record.missingDataPolicy ??= resolveProviderMissingDataPolicy(draft, providerId);
-    const refresh = resolveProviderRefreshPolicy(draft, providerId);
-    record.refresh = {
-      maxCacheAgeMs: refresh.maxAgeMs,
-      useCache: refresh.useCache,
-      keepAfterFailure: refresh.keepAfterFailure,
-      refreshWhileActive: refresh.refreshWhileActive,
-      refreshDisabledProvider: refresh.refreshDisabledProvider,
-    };
     for (const window of windows) {
       record.windows[window.key!] ??= {
         ...createWindowConfig(),
@@ -266,48 +244,14 @@ export function updateProviderWindow(
   return true;
 }
 
-export function setProviderMissingDataPolicy(
-  draft: StatuslineSettings,
-  providerId: string,
-  policy: MissingDataPolicy | undefined,
-): StatuslineSettings {
-  const record = ensureRecord(draft, providerId);
-  if (policy === undefined) delete record.missingDataPolicy;
-  else record.missingDataPolicy = policy;
-  return draft;
-}
-
-export function setProviderRefreshOverrides(
-  draft: StatuslineSettings,
-  providerId: string,
-  overrides: ProviderRefreshOverrides | undefined,
-): StatuslineSettings {
-  const record = ensureRecord(draft, providerId);
-  if (overrides === undefined) {
-    delete record.refresh;
-    return draft;
-  }
-  const refresh: ProviderRefreshOverrides = { ...overrides };
-  if (refresh.maxCacheAgeMs !== undefined) {
-    if (Number.isFinite(refresh.maxCacheAgeMs)) {
-      refresh.maxCacheAgeMs = Math.min(604_800_000, Math.max(MIN_CACHE_AGE_MS, Math.floor(refresh.maxCacheAgeMs)));
-    } else {
-      delete refresh.maxCacheAgeMs;
-    }
-  }
-  record.refresh = refresh;
-  return draft;
-}
-
 /** Return an effect for the caller; never invoke an adapter, timer, cache, or filesystem here. */
 export function requestProviderRefresh(
   draft: StatuslineSettings,
   providerId: string,
   capability: ProviderCapability,
-  isActive = false,
 ): ProviderUiEffect | undefined {
   const providerEnabled = draft.providers.records[providerId]?.enabled ?? true;
-  return resolveRefreshEligibility(draft, providerId, capability, { providerEnabled, isActive })
+  return resolveRefreshEligibility(draft, capability, providerEnabled)
     ? { type: "refresh-provider", providerId }
     : undefined;
 }

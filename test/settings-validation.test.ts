@@ -421,43 +421,20 @@ test("validation: extras parses booleans, ignores removed toggles, and falls bac
   // Missing extras group yields the same defaults.
   assert.deepEqual(parseStatuslineSettings({}).settings.extras, DEFAULT_STATUSLINE_SETTINGS.extras);
 });
-test("validation: sparse provider missing-data and refresh overrides are bounded and preserved", () => {
-  const record = parseStatuslineSettings({ providers: { records: { dynamic: {
-    missingDataPolicy: "warning",
-    refresh: {
-      refreshIntervalMs: 5_000,
-      maxCacheAgeMs: Number.POSITIVE_INFINITY,
-      useCache: false,
-      futureRefreshField: "kept",
-    },
-  } } } }).settings.providers.records.dynamic;
-  assert.equal(record.missingDataPolicy, "warning");
-  // Retired key: dropped, not carried along as unknown.
-  assert.equal("refreshIntervalMs" in (record.refresh ?? {}), false);
-  assert.equal(record.refresh?.maxCacheAgeMs, undefined);
-  assert.equal(record.refresh?.useCache, false);
-  assert.deepEqual(record.refresh?.__unknown, { futureRefreshField: "kept" });
-});
-
-test("validation: provider refresh unknown bag is idempotent across reparses", () => {
-  const once = parseStatuslineSettings({ providers: { records: { dynamic: {
-    refresh: {
-      refreshIntervalMs: 20_000,
-      __unknown: { alreadyPreserved: "yes" },
-      newlyUnknown: 42,
-    },
-  } } } }).settings;
-  assert.deepEqual(once.providers.records.dynamic.refresh?.__unknown, {
-    alreadyPreserved: "yes",
-    newlyUnknown: 42,
-  });
-
-  const twice = parseStatuslineSettings(once).settings;
-  assert.deepEqual(twice.providers.records.dynamic.refresh?.__unknown, {
-    alreadyPreserved: "yes",
-    newlyUnknown: 42,
-  });
-  assert.equal("__unknown" in (twice.providers.records.dynamic.refresh?.__unknown ?? {}), false);
+test("validation: retired provider refresh policy fields are dropped, not preserved as unknown", () => {
+  const { settings } = parseStatuslineSettings({ providers: {
+    defaults: { missingDataPolicy: "warning", maxCacheAgeMs: 20_000, useCache: false },
+    records: { dynamic: {
+      customField: 1,
+      missingDataPolicy: "warning",
+      refresh: { refreshIntervalMs: 5_000, maxCacheAgeMs: 20_000, useCache: false, refreshDisabledProvider: true },
+    } },
+  } });
+  const record = settings.providers.records.dynamic as unknown as Record<string, unknown> & { __unknown?: Record<string, unknown> };
+  assert.equal("defaults" in settings.providers, false);
+  assert.equal("missingDataPolicy" in record, false);
+  assert.equal("refresh" in record, false);
+  assert.deepEqual(record.__unknown, { customField: 1 });
 });
 
 test("saved settings naming removed segments and extras still load", () => {

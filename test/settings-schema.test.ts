@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseStatuslineSettings } from "../src/settings/validation.ts";
-import { DEFAULT_STATUSLINE_SETTINGS, createProviderConfig, createWindowConfig, createProviderDefaults } from "../src/settings/defaults.ts";
+import { DEFAULT_STATUSLINE_SETTINGS, createProviderConfig, createWindowConfig } from "../src/settings/defaults.ts";
 import { CURRENT_VERSION } from "../src/settings/schema.ts";
 
 test("schema: new provider reconciliation - adding provider with no prior config gets default config", () => {
@@ -11,7 +11,6 @@ test("schema: new provider reconciliation - adding provider with no prior config
     providers: {
       enabled: true,
       order: ["anthropic", "new-provider-xyz"],
-      defaults: createProviderDefaults(),
       records: {
         anthropic: createProviderConfig(),
       },
@@ -39,7 +38,6 @@ test("schema: existing order preserved when new provider added", () => {
     providers: {
       enabled: true,
       order: ["first", "second", "third"],
-      defaults: createProviderDefaults(),
       records: {
         first: createProviderConfig(),
         second: createProviderConfig(),
@@ -65,7 +63,6 @@ test("schema: string-keyed Records everywhere - no fixed provider-name unions", 
     providers: {
       enabled: true,
       order: ["custom-provider-1", "another-provider", "third-one"],
-      defaults: createProviderDefaults(),
       records: {
         "custom-provider-1": createProviderConfig(),
         "another-provider": createProviderConfig(),
@@ -103,7 +100,6 @@ test("schema: string-keyed Records for windows - no array-index window positions
     providers: {
       enabled: true,
       order: ["test-provider"],
-      defaults: createProviderDefaults(),
       records: { "test-provider": providerConfig },
     },
     layout: DEFAULT_STATUSLINE_SETTINGS.layout,
@@ -139,7 +135,6 @@ test("schema: activeModel three-state values", () => {
     providers: {
       enabled: true,
       order: ["test-provider"],
-      defaults: createProviderDefaults(),
       records: { "test-provider": providerConfig },
     },
     layout: DEFAULT_STATUSLINE_SETTINGS.layout,
@@ -169,7 +164,6 @@ test("schema: displayMode default vs custom", () => {
     providers: {
       enabled: true,
       order: ["test-provider"],
-      defaults: createProviderDefaults(),
       records: { "test-provider": providerConfig },
     },
     layout: DEFAULT_STATUSLINE_SETTINGS.layout,
@@ -195,7 +189,6 @@ test("schema: provider icon override", () => {
     providers: {
       enabled: true,
       order: ["test-provider"],
-      defaults: createProviderDefaults(),
       records: { "test-provider": providerConfig },
     },
     layout: DEFAULT_STATUSLINE_SETTINGS.layout,
@@ -223,7 +216,6 @@ test("schema: thresholds per-provider optional override", () => {
     providers: {
       enabled: true,
       order: ["test-provider"],
-      defaults: createProviderDefaults(),
       records: { "test-provider": providerConfig },
     },
     layout: DEFAULT_STATUSLINE_SETTINGS.layout,

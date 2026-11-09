@@ -3,7 +3,6 @@ import { CURRENT_VERSION } from "./schema.ts";
 import { DEFAULT_STATUSLINE_SETTINGS } from "./defaults.ts";
 import { SEGMENT_ORDER } from "../segments.ts";
 import { migrateVersionOneSettings } from "./migrations.ts";
-import { MIN_CACHE_AGE_MS } from "./refresh.ts";
 
 const VALID_SEGMENT_IDS = new Set<string>(SEGMENT_ORDER);
 
@@ -44,21 +43,10 @@ const KNOWN_PROVIDER_FIELDS = new Set([
   "activeModel",
   "thresholds",
   "icon",
+  // Retired: dropped on load instead of being carried along in __unknown.
   "missingDataPolicy",
   "refresh",
   "supportedOverrides",
-]);
-
-/** Known refresh override fields. */
-const KNOWN_REFRESH_FIELDS = new Set([
-  // Retired: dropped on load instead of being carried along in __unknown.
-  "refreshIntervalMs",
-  "maxCacheAgeMs",
-  "useCache",
-  "keepAfterFailure",
-  "refreshWhileActive",
-  "refreshDisabledProvider",
-  "__unknown",
 ]);
 
 /** Known window fields. */
@@ -115,7 +103,6 @@ function parseProviders(value: unknown): StatuslineSettings["providers"] {
   const order = Array.isArray(input.order)
     ? input.order.map(sanitizeString).filter((s): s is string => s.length > 0)
     : [];
-  const defaults = parseProviderDefaults(input.defaults);
   type ProviderRecord = StatuslineSettings["providers"]["records"][string];
   const records: Record<string, ProviderRecord> = {};
 
@@ -127,31 +114,7 @@ function parseProviders(value: unknown): StatuslineSettings["providers"] {
     }
   }
 
-  return { enabled, order, defaults, records };
-}
-
-/** Parse provider defaults. */
-function parseProviderDefaults(value: unknown): StatuslineSettings["providers"]["defaults"] {
-  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const displayMode = input.displayMode === "custom" ? "custom" : "default";
-  const missingDataPolicy =
-    ["hide", "cached", "na", "warning", "provider-name"].includes(input.missingDataPolicy as string)
-      ? (input.missingDataPolicy as StatuslineSettings["providers"]["defaults"]["missingDataPolicy"])
-      : "cached";
-  const maxCacheAgeMs = clamp(
-    typeof input.maxCacheAgeMs === "number" ? input.maxCacheAgeMs : 300000,
-    MIN_CACHE_AGE_MS,
-    604800000
-  );
-  return {
-    displayMode,
-    missingDataPolicy,
-    maxCacheAgeMs,
-    useCache: typeof input.useCache === "boolean" ? input.useCache : true,
-    keepAfterFailure: typeof input.keepAfterFailure === "boolean" ? input.keepAfterFailure : true,
-    refreshWhileActive: typeof input.refreshWhileActive === "boolean" ? input.refreshWhileActive : true,
-    refreshDisabledProvider: typeof input.refreshDisabledProvider === "boolean" ? input.refreshDisabledProvider : false,
-  };
+  return { enabled, order, records };
 }
 
 /** Parse provider configuration. */
@@ -198,28 +161,6 @@ function parseProviderConfig(value: unknown): StatuslineSettings["providers"]["r
     icon = { mode, value };
   }
 
-  const missingDataPolicy = ["hide", "cached", "na", "warning", "provider-name"].includes(input.missingDataPolicy as string)
-    ? input.missingDataPolicy as StatuslineSettings["providers"]["defaults"]["missingDataPolicy"]
-    : undefined;
-
-  let refresh: StatuslineSettings["providers"]["records"][string]["refresh"];
-  if (input.refresh && typeof input.refresh === "object") {
-    const source = input.refresh as Record<string, unknown>;
-    refresh = {};
-    if (typeof source.maxCacheAgeMs === "number" && Number.isFinite(source.maxCacheAgeMs)) {
-      refresh.maxCacheAgeMs = clamp(Math.floor(source.maxCacheAgeMs), MIN_CACHE_AGE_MS, 604_800_000);
-    }
-    for (const key of ["useCache", "keepAfterFailure", "refreshWhileActive", "refreshDisabledProvider"] as const) {
-      if (typeof source[key] === "boolean") refresh[key] = source[key];
-    }
-    const existingUnknown = source.__unknown && typeof source.__unknown === "object" && !Array.isArray(source.__unknown)
-      ? source.__unknown as Record<string, unknown>
-      : {};
-    const unknownRefresh = { ...existingUnknown, ...collectUnknown(source, KNOWN_REFRESH_FIELDS) };
-    if (Object.keys(unknownRefresh).length) refresh.__unknown = unknownRefresh;
-    if (!Object.keys(refresh).length) refresh = undefined;
-  }
-
   const supportedOverrides: SegmentId[] = [];
   if (Array.isArray(input.supportedOverrides)) {
     for (const s of input.supportedOverrides) {
@@ -235,8 +176,6 @@ function parseProviderConfig(value: unknown): StatuslineSettings["providers"]["r
     activeModel,
     thresholds,
     icon,
-    ...(missingDataPolicy ? { missingDataPolicy } : {}),
-    ...(refresh ? { refresh } : {}),
     supportedOverrides,
   };
 }

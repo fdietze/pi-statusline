@@ -22,8 +22,6 @@ import {
   requestProviderRefresh,
   setProviderDisplayMode,
   setProviderIcon,
-  setProviderMissingDataPolicy,
-  setProviderRefreshOverrides,
   toggleProvider,
   updateProviderWindow,
   type ProviderUiContext,
@@ -161,14 +159,6 @@ test("provider screen is truthful, capability-gated, and integrated without I/O"
   setProviderDisplayMode(state.draft, "dynamic-a", "custom", providerContext.windows!["dynamic-a"]);
   cycleActiveModelOverride(state.draft, "dynamic-a", "context");
   setProviderIcon(state.draft, "dynamic-a", { mode: "custom", value: "D" });
-  setProviderMissingDataPolicy(state.draft, "dynamic-a", "warning");
-  setProviderRefreshOverrides(state.draft, "dynamic-a", {
-    maxCacheAgeMs: 40_000,
-    useCache: false,
-    keepAfterFailure: false,
-    refreshWhileActive: true,
-    refreshDisabledProvider: true,
-  });
   updateProviderWindow(state.draft, "dynamic-a", "short", {
     visible: false,
     label: "Mine",
@@ -185,11 +175,6 @@ test("provider screen is truthful, capability-gated, and integrated without I/O"
   assert.equal(detail.displayMode, "custom");
   assert.equal(detail.activeModel.context, "off");
   assert.deepEqual(detail.providerIcon, { mode: "custom", value: "D" });
-  assert.equal(detail.missingDataPolicy, "warning");
-  assert.deepEqual(detail.refresh, {
-    maxAgeMs: 40_000, useCache: false, keepAfterFailure: false,
-    refreshWhileActive: true, refreshDisabledProvider: true,
-  });
   assert.equal(detail.refreshNowEligible, true);
   assert.deepEqual(detail.quotaWindows[0].settings, {
     visible: false, label: "Mine", showBar: false, showPercent: false, showReset: true,
@@ -250,20 +235,6 @@ test("display mode and window reconciliation fail closed on invalid adapter keys
     { key: "same", label: "A", used: 0 }, { key: "same", label: "B", used: 0 },
   ]).ok, false);
   assert.deepEqual(draft.providers.records["dynamic-a"].windows, before);
-});
-
-test("refresh/cache draft edits are bounded and reject non-finite ages", () => {
-  const draft = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
-  setProviderRefreshOverrides(draft, "dynamic-a", {
-    maxCacheAgeMs: 1,
-    useCache: false,
-  });
-  assert.deepEqual(draft.providers.records["dynamic-a"].refresh, {
-    maxCacheAgeMs: 10_000,
-    useCache: false,
-  });
-  setProviderRefreshOverrides(draft, "dynamic-a", { maxCacheAgeMs: Number.NaN });
-  assert.deepEqual(draft.providers.records["dynamic-a"].refresh, {});
 });
 
 test("refresh-now is only an explicit effect for eligible providers", () => {
@@ -554,25 +525,11 @@ test("default to custom snapshots every effective provider and window value", ()
   draft.segments.context = false;
   draft.bars.showPercent = false;
   draft.bars.width = 21;
-  draft.providers.defaults = {
-    ...draft.providers.defaults,
-    missingDataPolicy: "warning",
-    maxCacheAgeMs: 40_000,
-    useCache: false,
-    keepAfterFailure: false,
-    refreshWhileActive: false,
-    refreshDisabledProvider: true,
-  };
   setProviderDisplayMode(draft, "dynamic-a", "custom", [{ key: "short", label: "Effective", used: 0.2 }]);
   const record = draft.providers.records["dynamic-a"];
   assert.equal(record.displayMode, "custom");
   assert.equal(record.activeModel.context, "off");
   assert.equal(record.activeModel.project, "on");
-  assert.equal(record.missingDataPolicy, "warning");
-  assert.deepEqual(record.refresh, {
-    maxCacheAgeMs: 40_000, useCache: false,
-    keepAfterFailure: false, refreshWhileActive: false, refreshDisabledProvider: true,
-  });
   assert.equal(draft.icons.providers["dynamic-a"], undefined);
   assert.deepEqual(record.windows.short, {
     visible: true, label: "Effective", showBar: true, showPercent: false, showReset: true,

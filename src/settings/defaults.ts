@@ -1,6 +1,5 @@
 import type {
   StatuslineSettings,
-  ProviderDefaults,
   ProviderConfiguration,
   WindowConfiguration,
   SegmentId,
@@ -11,7 +10,6 @@ import type {
   BarStyle,
   IconStyle,
   PreviewMode,
-  MissingDataPolicy,
   ResetFormat,
 } from "./schema.ts";
 import { CURRENT_VERSION } from "./schema.ts";
@@ -45,17 +43,6 @@ function defaultProviderConfig(): ProviderConfiguration {
     supportedOverrides: [...SEGMENT_ORDER],
   };
 }
-
-/** Default provider defaults. */
-const DEFAULT_PROVIDER_DEFAULTS: ProviderDefaults = {
-  displayMode: "default",
-  missingDataPolicy: "cached",
-  maxCacheAgeMs: 300000,
-  useCache: true,
-  keepAfterFailure: true,
-  refreshWhileActive: true,
-  refreshDisabledProvider: false,
-};
 
 /** Default separators — match the live footer's documented look (` > ` between segments). */
 const DEFAULT_SEPARATORS = {
@@ -123,7 +110,6 @@ const DEFAULT_LAYOUT = {
 const DEFAULT_PROVIDERS = {
   enabled: true,
   order: [] as string[],
-  defaults: DEFAULT_PROVIDER_DEFAULTS,
   records: {} as Record<string, ProviderConfiguration>,
 };
 
@@ -145,7 +131,6 @@ const DEFAULT_SEGMENTS: Record<SegmentId, boolean> = {
  * - bars: rounded width 12, fill '█', empty '░', rounded caps, showPercent true
  * - providerRows: 'newline' (one provider per line)
  * - thresholds: 80/95 warning/critical
- * - provider maxCacheAgeMs: 300000
  * - icon style: 'emoji'
  * - separators main: ' >' with one space after it
  */
@@ -171,9 +156,4 @@ export function createProviderConfig(): ProviderConfiguration {
 /** Create a fresh window configuration with defaults. */
 export function createWindowConfig(): WindowConfiguration {
   return defaultWindowConfig();
-}
-
-/** Create default provider defaults. */
-export function createProviderDefaults(): ProviderDefaults {
-  return { ...DEFAULT_PROVIDER_DEFAULTS };
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_STATUSLINE_SETTINGS, createProviderConfig, createWindowConfig, createProviderDefaults } from "../src/settings/defaults.ts";
+import { DEFAULT_STATUSLINE_SETTINGS, createProviderConfig, createWindowConfig } from "../src/settings/defaults.ts";
 import { CURRENT_VERSION } from "../src/settings/schema.ts";
 import { SEGMENT_ORDER } from "../src/segments.ts";
 
@@ -80,11 +80,4 @@ test("defaults: createWindowConfig returns fresh config", () => {
   assert.equal(win1.visible, true);
   assert.equal(win1.width, 12);
   assert.equal(win1.resetFormat, "countdown");
-});
-
-test("defaults: createProviderDefaults returns fresh defaults", () => {
-  const d1 = createProviderDefaults();
-  const d2 = createProviderDefaults();
-  assert.notStrictEqual(d1, d2);
-  assert.equal(d1.maxCacheAgeMs, 300000);
 });

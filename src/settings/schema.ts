@@ -27,9 +27,6 @@ export type IconStyle = "emoji" | "unicode" | "ascii" | "nerdfont" | "minimal" |
 /** Preview mode for settings UI. */
 export type PreviewMode = "current" | "local" | "subscription" | "api" | "narrow";
 
-/** Missing data display policy. */
-export type MissingDataPolicy = "hide" | "cached" | "na" | "warning" | "provider-name";
-
 /** Reset time format. */
 export type ResetFormat = "countdown" | "exact-time" | "exact-date";
 
@@ -57,17 +54,6 @@ export interface WindowConfiguration {
   width: number;
 }
 
-/** Sparse per-provider refresh/cache overrides. */
-export interface ProviderRefreshOverrides {
-  maxCacheAgeMs?: number;
-  useCache?: boolean;
-  keepAfterFailure?: boolean;
-  refreshWhileActive?: boolean;
-  refreshDisabledProvider?: boolean;
-  /** Opaque fields retained by validation for forward compatibility. */
-  __unknown?: Record<string, unknown>;
-}
-
 /** Per-provider configuration. */
 export interface ProviderConfiguration {
   /** Whether this provider is enabled. */
@@ -82,10 +68,6 @@ export interface ProviderConfiguration {
   thresholds?: { contextWarn: number; contextCrit: number };
   /** Optional provider icon override. */
   icon?: { mode: "default" | "custom" | "hidden"; value: string };
-  /** Sparse missing-data override; absent inherits the provider default. */
-  missingDataPolicy?: MissingDataPolicy;
-  /** Sparse refresh/cache overrides; absent fields inherit provider defaults. */
-  refresh?: ProviderRefreshOverrides;
   /** Segments this provider supports overriding (for UI gating). */
   supportedOverrides: SegmentId[];
 }
@@ -96,28 +78,8 @@ export interface ProvidersSettings {
   enabled: boolean;
   /** Persisted provider row order. */
   order: string[];
-  /** Default provider presentation/refresh/missing-data policy. */
-  defaults: ProviderDefaults;
   /** Provider-specific configurations keyed by provider id. */
   records: Record<string, ProviderConfiguration>;
-}
-
-/** Default provider presentation/refresh/missing-data policy. */
-export interface ProviderDefaults {
-  /** Default display mode for new providers. */
-  displayMode: ProviderDisplayMode;
-  /** Default missing data policy. */
-  missingDataPolicy: MissingDataPolicy;
-  /** Default max cache age ms. */
-  maxCacheAgeMs: number;
-  /** Use cache by default. */
-  useCache: boolean;
-  /** Keep cached data after failure. */
-  keepAfterFailure: boolean;
-  /** Refresh while provider is active. */
-  refreshWhileActive: boolean;
-  /** Refresh even when provider row is disabled. */
-  refreshDisabledProvider: boolean;
 }
 
 /** Layout configuration. */
