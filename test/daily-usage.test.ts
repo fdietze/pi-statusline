@@ -236,3 +236,36 @@ test("decorate matches windows whose reset differs by API/header jitter, not by 
     cleanup();
   }
 });
+
+test("reload picks up observations another session persisted", () => {
+  const now = { value: localTime(2026, 8, 16, 10) };
+  const { dir, tracker: other, cleanup } = temporaryTracker(now);
+  const mine = new DailyUsage(dir, "openai-codex", () => now.value);
+  const resetAt = now.value + 604_800_000;
+  try {
+    other.observe("acct_1", [window(0.2, resetAt)]);
+    mine.selectAccount("acct_1");
+    now.value += 1_000;
+    other.observe("acct_1", [window(0.26, resetAt)]);
+    assert.equal(mine.decorate([window(0.26, resetAt)])[0]!.dailyUsed, 0, "stale until reloaded");
+    mine.reload();
+    assert.ok(Math.abs(mine.decorate([window(0.26, resetAt)])[0]!.dailyUsed! - 0.06) < 1e-9);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a reset that moved without the clock reaching it starts a new baseline", () => {
+  const now = { value: localTime(2026, 8, 16, 10) };
+  const { tracker, cleanup } = temporaryTracker(now);
+  const resetAt = now.value + 3_600_000;
+  try {
+    tracker.observe("acct_1", [window(0.1, resetAt)]);
+    now.value += 1_000;
+    assert.ok(Math.abs(tracker.observe("acct_1", [window(0.15, resetAt + 800)])[0]!.dailyUsed! - 0.05) < 1e-9, "jitter keeps the window");
+    now.value += 1_000;
+    assert.equal(tracker.observe("acct_1", [window(0.7, resetAt + 604_800_000)])[0]!.dailyUsed, 0, "another account's window");
+  } finally {
+    cleanup();
+  }
+});

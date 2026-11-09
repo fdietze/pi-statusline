@@ -119,6 +119,13 @@ export class DailyUsage {
     this.state = read?.kind === "valid" ? read.history.accounts[account!] : undefined;
   }
 
+  /** Re-read the selected account's history, picking up observations other sessions persisted. */
+  reload(): void {
+    if (!this.account) return;
+    const read = this.read();
+    this.state = read.kind === "valid" ? read.history.accounts[this.account] : undefined;
+  }
+
   clearAccount(): void {
     this.account = undefined;
     this.state = undefined;
@@ -169,10 +176,16 @@ export class DailyUsage {
           continue;
         }
 
-        const resetChanged = previous.resetAt !== undefined && observation.resetAt !== undefined
-          && previous.resetAt !== observation.resetAt;
-        const crossedReset = resetChanged && observation.resetAt! > previous.resetAt!
+        const resetMoved = previous.resetAt !== undefined && observation.resetAt !== undefined
+          && Math.abs(observation.resetAt - previous.resetAt) > RESET_JITTER_MS;
+        const crossedReset = resetMoved && observation.resetAt! > previous.resetAt!
           && observedAt >= previous.resetAt!;
+        // A different window that was not reached by the clock (e.g. another account) shares no
+        // history with the previous one.
+        if (resetMoved && !crossedReset) {
+          windows[observation.key] = this.baseline(observation, observedAt);
+          continue;
+        }
         windows[observation.key] = {
           used: observation.used,
           dailyUsed: previous.dailyUsed + (crossedReset

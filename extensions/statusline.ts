@@ -158,11 +158,11 @@ export default function statusline(
     }
   };
 
-  // The tracked "% today" values for providers that have a tracker; other providers render without.
+  // Providers with a "% today" tracker; other providers render without.
+  const dailyUsageOf = (provider: string | undefined): DailyUsage | undefined =>
+    provider === "openai-codex" ? codexDailyUsage : provider === "anthropic" ? anthropicDailyUsage : undefined;
   const withDailyUsage = (provider: string | undefined, windows: RateLimits): RateLimits =>
-    provider === "openai-codex" ? codexDailyUsage.decorate(windows)
-      : provider === "anthropic" ? anthropicDailyUsage.decorate(windows)
-        : windows;
+    dailyUsageOf(provider)?.decorate(windows) ?? windows;
 
   const restoreAnthropicLimits = (ctx: ExtensionContext): RateLimits => {
     const branch = ctx.sessionManager.getBranch();
@@ -255,11 +255,16 @@ export default function statusline(
     }
   };
 
-  const refreshProviderUsage = (provider: string, fetchLimits: () => Promise<RateLimits>, scope?: string) =>
-    providerUsageCache.refresh(provider, async () => {
+  const refreshProviderUsage = async (provider: string, fetchLimits: () => Promise<RateLimits>, scope?: string) => {
+    const usage = await providerUsageCache.refresh(provider, async () => {
       const next = await fetchLimits();
       return next.length ? { limits: next } : undefined;
     }, scope);
+    // Only one process per refresh window fetches (and tracks) usage; re-read the shared history so
+    // this session's "% today" follows it instead of freezing at its start-up value.
+    dailyUsageOf(provider)?.reload();
+    return usage;
+  };
 
   const selectCodexAccount = (credentials: { accountId: string }, activeCodex: boolean) => {
     const scope = accountScope(credentials.accountId);
