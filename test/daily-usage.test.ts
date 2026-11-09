@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { CodexDailyUsage, operationalDayStart } from "../src/codex-daily.ts";
+import { DailyUsage, operationalDayStart } from "../src/daily-usage.ts";
 import type { RateLimitWindow } from "../src/ratelimit.ts";
 
 const window = (used: number, resetAt = Date.now() + 604_800_000, durationMs = 604_800_000): RateLimitWindow => ({
@@ -18,7 +18,7 @@ function temporaryTracker(now: { value: number }) {
   const dir = mkdtempSync(join(tmpdir(), "pi-statusline-daily-"));
   return {
     dir,
-    tracker: new CodexDailyUsage(dir, () => now.value),
+    tracker: new DailyUsage(dir, "openai-codex", () => now.value),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
@@ -54,7 +54,7 @@ test("tracks positive quota changes and survives tracker restarts", () => {
     assert.ok(Math.abs(tracker.observe("acct_1", [window(0.26, resetAt)])[0]!.dailyUsed! - 0.06) < 1e-9);
 
     now.value += 1_000;
-    const restarted = new CodexDailyUsage(dir, () => now.value);
+    const restarted = new DailyUsage(dir, "openai-codex", () => now.value);
     assert.ok(Math.abs(restarted.observe("acct_1", [window(0.3, resetAt)])[0]!.dailyUsed! - 0.1) < 1e-9);
     assert.equal(readFileSync(join(dir, "openai-codex.json"), "utf8").includes("acct_1"), false);
   } finally {
@@ -139,12 +139,12 @@ test("rejects stale writers and recovers a corrupt state file", () => {
     tracker.observe("acct_1", [window(0.2, resetAt)], now.value);
     now.value += 2_000;
     tracker.observe("acct_1", [window(0.3, resetAt)], now.value);
-    const stale = new CodexDailyUsage(dir, () => now.value);
+    const stale = new DailyUsage(dir, "openai-codex", () => now.value);
     assert.ok(Math.abs(stale.observe("acct_1", [window(0.25, resetAt)], now.value - 1_000)[0]!.dailyUsed! - 0.1) < 1e-9);
 
     writeFileSync(join(dir, "openai-codex.json"), "not json");
     now.value += 1_000;
-    assert.equal(new CodexDailyUsage(dir, () => now.value).observe("acct_1", [window(0.4, resetAt)])[0]!.dailyUsed, 0);
+    assert.equal(new DailyUsage(dir, "openai-codex", () => now.value).observe("acct_1", [window(0.4, resetAt)])[0]!.dailyUsed, 0);
     assert.doesNotThrow(() => JSON.parse(readFileSync(join(dir, "openai-codex.json"), "utf8")));
   } finally {
     cleanup();
@@ -159,7 +159,7 @@ test("restores only the selected account and stops decorating after day rollover
     tracker.observe("acct_1", [window(0.2, resetAt)]);
     now.value += 1_000;
     tracker.observe("acct_1", [window(0.25, resetAt)]);
-    const restarted = new CodexDailyUsage(dir, () => now.value);
+    const restarted = new DailyUsage(dir, "openai-codex", () => now.value);
     assert.equal(restarted.decorate([window(0.25, resetAt)])[0]!.dailyUsed, undefined);
     restarted.selectAccount("acct_1");
     assert.ok(Math.abs(restarted.decorate([window(0.25, resetAt)])[0]!.dailyUsed! - 0.05) < 1e-9);
@@ -183,10 +183,10 @@ test("merges stale partial snapshots per window instead of discarding the whole 
     tracker.observe("acct_1", [window(0.2, resetAt), secondary(0.4)], now.value);
     now.value += 2_000;
     tracker.observe("acct_1", [window(0.3, resetAt)], now.value);
-    const stale = new CodexDailyUsage(dir, () => now.value);
+    const stale = new DailyUsage(dir, "openai-codex", () => now.value);
     assert.ok(Math.abs(stale.observe("acct_1", [secondary(0.45)], now.value - 1_000)[0]!.dailyUsed! - 0.05) < 1e-9);
 
-    const restored = new CodexDailyUsage(dir, () => now.value);
+    const restored = new DailyUsage(dir, "openai-codex", () => now.value);
     restored.selectAccount("acct_1");
     const [primaryResult, secondaryResult] = restored.decorate([window(0.3, resetAt), secondary(0.45)]);
     assert.ok(Math.abs(primaryResult!.dailyUsed! - 0.1) < 1e-9);
@@ -203,8 +203,36 @@ test("history storage failure never hides the core quota snapshot", () => {
   writeFileSync(blocked, "not a directory");
   try {
     const limits = [window(0.2)];
-    assert.deepEqual(new CodexDailyUsage(join(blocked, "child"), () => now.value).observe("acct_1", limits), limits);
+    assert.deepEqual(new DailyUsage(join(blocked, "child"), "openai-codex", () => now.value).observe("acct_1", limits), limits);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the provider name selects the history file, so providers never share baselines", () => {
+  const now = { value: localTime(2026, 8, 16, 10) };
+  const dir = mkdtempSync(join(tmpdir(), "pi-statusline-daily-"));
+  try {
+    const resetAt = now.value + 604_800_000;
+    new DailyUsage(dir, "anthropic", () => now.value).observe("anthropic", [window(0.2, resetAt)]);
+    assert.ok(readFileSync(join(dir, "anthropic.json"), "utf8").includes("primary"));
+    assert.throws(() => readFileSync(join(dir, "openai-codex.json"), "utf8"), /ENOENT/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("decorate matches windows whose reset differs by API/header jitter, not by days", () => {
+  const now = { value: localTime(2026, 8, 16, 10) };
+  const { tracker, cleanup } = temporaryTracker(now);
+  const resetAt = now.value + 604_800_000;
+  try {
+    tracker.observe("acct_1", [window(0.2, resetAt)]);
+    now.value += 1_000;
+    tracker.observe("acct_1", [window(0.25, resetAt)]);
+    assert.ok(Math.abs(tracker.decorate([window(0.25, resetAt + 800)])[0]!.dailyUsed! - 0.05) < 1e-9, "sub-second jitter");
+    assert.equal(tracker.decorate([window(0.25, resetAt + 604_800_000)])[0]!.dailyUsed, undefined, "next window");
+  } finally {
+    cleanup();
   }
 });

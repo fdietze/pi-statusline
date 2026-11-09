@@ -983,14 +983,19 @@ test("tracks every selected provider's usage simultaneously, not just the active
       },
     } as never;
 
-    statusline(pi, testCache(), join(cacheRoot, "defaults.json"));
+    // Own directory: the daily-usage history persists next to the settings file, so sharing it with
+    // other tests would carry their observations into the "% today" assertions below.
+    const historyRoot = mkdtempSync(join(cacheRoot, "history-"));
+    statusline(pi, testCache(), join(historyRoot, "defaults.json"));
     await handlers.get("session_start")!({}, ctx);
     await new Promise<void>((resolve) => setImmediate(resolve));
     await new Promise<void>((resolve) => setImmediate(resolve));
     const lines = footer!.render(500);
     assert.ok(lines.some((line) => line.includes("anthropic") && line.includes("5h")), `expected an anthropic row despite Codex being active, got: ${JSON.stringify(lines)}`);
     assert.ok(lines.some((line) => line.includes("openai-codex") && line.includes("≈0.0% today")), `expected tracked daily Codex usage, got: ${JSON.stringify(lines)}`);
-    assert.equal(existsSync(join(cacheRoot, "quota-history", "openai-codex.json")), true);
+    assert.equal(existsSync(join(historyRoot, "quota-history", "openai-codex.json")), true);
+    assert.ok(lines.some((line) => line.includes("anthropic") && line.includes("≈0.0% today")), `expected tracked daily Anthropic usage, got: ${JSON.stringify(lines)}`);
+    assert.equal(existsSync(join(historyRoot, "quota-history", "anthropic.json")), true);
   } finally {
     footer?.dispose?.();
     globalThis.fetch = originalFetch;

@@ -10,7 +10,7 @@ import {
   TerminalProgressMultiplexer,
   type ProgressTerminal,
 } from "../src/agent-activity.ts";
-import { codexAccountScope, CodexDailyUsage, CODEX_QUOTA_HISTORY_DIR } from "../src/codex-daily.ts";
+import { accountScope, DailyUsage, QUOTA_HISTORY_DIR } from "../src/daily-usage.ts";
 import { msUntilResetCountdownChange } from "../src/format.ts";
 import { parseAnthropicUsage, parseCodexUsage, parseRateLimits, parseStoredRateLimits, parseZaiUsage, type RateLimits, type RateLimitWindow } from "../src/ratelimit.ts";
 import { ProviderUsageCache } from "../src/provider-cache.ts";
@@ -36,19 +36,22 @@ import type { StatuslineSettings } from "../src/settings/schema.ts";
 // the machine for local and SSH sessions alike.
 const HOSTNAME = hostname().split(".")[0];
 
+const quotaHistoryDir = (settingsPath: string) =>
+  settingsPath === DEFAULT_STATUSLINE_CONFIG_PATH ? QUOTA_HISTORY_DIR : join(dirname(settingsPath), "quota-history");
+
 export default function statusline(
   pi: ExtensionAPI,
   providerUsageCache = new ProviderUsageCache(),
   settingsPath = DEFAULT_STATUSLINE_CONFIG_PATH,
-  codexDailyUsage = new CodexDailyUsage(
-    settingsPath === DEFAULT_STATUSLINE_CONFIG_PATH
-      ? CODEX_QUOTA_HISTORY_DIR
-      : join(dirname(settingsPath), "quota-history"),
-  ),
+  codexDailyUsage = new DailyUsage(quotaHistoryDir(settingsPath), "openai-codex"),
+  anthropicDailyUsage = new DailyUsage(quotaHistoryDir(settingsPath), "anthropic"),
 ) {
   let settings: StatuslineSettings = loadRuntimeSettings(settingsPath);
   let limits: RateLimits = [];
   const ANTHROPIC_LIMITS_ENTRY = "pi-statusline:anthropic-limits";
+  // The usage endpoint names no account, so all Anthropic observations share one history scope;
+  // an account switch just starts a new baseline once its reset time or usage no longer matches.
+  const ANTHROPIC_ACCOUNT = "anthropic";
   let requestRender: (() => void) | undefined;
   let tick: ReturnType<typeof setTimeout> | undefined;
   let anthropicRetryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -155,6 +158,12 @@ export default function statusline(
     }
   };
 
+  // The tracked "% today" values for providers that have a tracker; other providers render without.
+  const withDailyUsage = (provider: string | undefined, windows: RateLimits): RateLimits =>
+    provider === "openai-codex" ? codexDailyUsage.decorate(windows)
+      : provider === "anthropic" ? anthropicDailyUsage.decorate(windows)
+        : windows;
+
   const restoreAnthropicLimits = (ctx: ExtensionContext): RateLimits => {
     const branch = ctx.sessionManager.getBranch();
     for (let index = branch.length - 1; index >= 0; index--) {
@@ -189,7 +198,7 @@ export default function statusline(
       // instead of re-hammering the endpoint each refresh (Anthropic's retry-after: 0 is useless).
       if (response.status === 429) throw new RateLimitedError();
       if (!response.ok) return [];
-      return parseAnthropicUsage(await response.json());
+      return anthropicDailyUsage.observe(ANTHROPIC_ACCOUNT, parseAnthropicUsage(await response.json()));
     } catch (error) {
       // Best effort: unavailable account usage falls back to response headers — but let the 429
       // signal through so the cache can apply its shared backoff.
@@ -253,7 +262,7 @@ export default function statusline(
     }, scope);
 
   const selectCodexAccount = (credentials: { accountId: string }, activeCodex: boolean) => {
-    const scope = codexAccountScope(credentials.accountId);
+    const scope = accountScope(credentials.accountId);
     if (scope !== codexCacheScope) {
       codexCacheScope = scope;
       codexAccountGeneration++;
@@ -370,7 +379,7 @@ export default function statusline(
             const health = providerRefresh?.get(p);
             if (health?.state === "fresh") return [{
               provider: p,
-              windows: p === "openai-codex" ? codexDailyUsage.decorate(health.usage.limits) : health.usage.limits,
+              windows: withDailyUsage(p, health.usage.limits),
             }];
             // Before a subscription provider's usage loads, anthropic+OAuth earns a placeholder row.
             if (p === "anthropic") {
@@ -399,7 +408,7 @@ export default function statusline(
             extensionStatuses: liveExtensionStatuses,
             pending: ctx.hasPendingMessages(),
             totals,
-            sessionWindows: provider === "openai-codex" ? codexDailyUsage.decorate(limits) : limits,
+            sessionWindows: withDailyUsage(provider, limits),
             activeProviderHasRow,
             sessionPlaceholder,
           }, contentWidth, theme);
@@ -440,9 +449,7 @@ export default function statusline(
       const snapshot = providerRefresh?.get(descriptor.id);
       if (snapshot?.state === "fresh") {
         health[descriptor.id] = { state: "fresh" };
-        windows[descriptor.id] = descriptor.id === "openai-codex"
-          ? codexDailyUsage.decorate(snapshot.usage.limits)
-          : snapshot.usage.limits;
+        windows[descriptor.id] = withDailyUsage(descriptor.id, snapshot.usage.limits);
       } else if (snapshot) {
         health[descriptor.id] = { state: "unknown" };
       }
@@ -587,6 +594,7 @@ export default function statusline(
     codexAccountGeneration++;
     codexCacheScope = undefined;
     codexDailyUsage.clearAccount();
+    anthropicDailyUsage.selectAccount(ANTHROPIC_ACCOUNT);
     disposeProgressMultiplexer();
     stopTick();
     stopAnthropicRetry();
@@ -672,7 +680,7 @@ export default function statusline(
       clearCodexAccount(true);
       return;
     }
-    if (codexAccountScope(credentials.accountId) !== scope) {
+    if (accountScope(credentials.accountId) !== scope) {
       selectCodexAccount(credentials, true);
       return;
     }

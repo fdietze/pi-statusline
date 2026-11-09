@@ -5,11 +5,13 @@ import { dirname, join } from "node:path";
 import { lockSync } from "proper-lockfile";
 import type { RateLimits, RateLimitWindow } from "./ratelimit.ts";
 
-export const CODEX_QUOTA_HISTORY_DIR = join(homedir(), ".pi", "agent", "statusline", "quota-history");
-const FILE = "openai-codex.json";
+export const QUOTA_HISTORY_DIR = join(homedir(), ".pi", "agent", "statusline", "quota-history");
 const VERSION = 1;
 const DAY_START_HOUR = 5;
 const LOCK_MS = 10_000;
+// Reset timestamps of one window differ by sub-second jitter between a provider's usage API and
+// its response headers; days-apart resets are never within this distance.
+const RESET_JITTER_MS = 60_000;
 
 interface WindowState {
   used: number;
@@ -85,7 +87,7 @@ function parseAccount(value: unknown, now: number): AccountState | undefined {
   return Object.keys(windows).length ? { dayStart: account.dayStart, observedAt: account.observedAt, windows } : undefined;
 }
 
-export function codexAccountScope(accountId: string): string {
+export function accountScope(accountId: string): string {
   return createHash("sha256").update(accountId).digest("hex").slice(0, 24);
 }
 
@@ -96,21 +98,22 @@ function validObservation(window: RateLimitWindow): window is RateLimitWindow & 
     && (window.durationMs === undefined || (finite(window.durationMs) && window.durationMs > 0));
 }
 
-/** Persist and decorate Codex snapshots with approximate quota consumed since 05:00 local time. */
-export class CodexDailyUsage {
+/** Persist and decorate one provider's snapshots with approximate quota consumed since 05:00 local time. */
+export class DailyUsage {
   private readonly file: string;
   private readonly now: () => number;
   private account: string | undefined;
   private state: AccountState | undefined;
 
-  constructor(dir = CODEX_QUOTA_HISTORY_DIR, now = () => Date.now()) {
-    this.file = join(dir, FILE);
+  /** `provider` names the history file, so each provider tracks its accounts independently. */
+  constructor(dir: string, provider: string, now = () => Date.now()) {
+    this.file = join(dir, `${provider}.json`);
     this.now = now;
   }
 
   /** Select an authenticated account and restore its latest state once, outside the render path. */
   selectAccount(accountId: string): void {
-    const account = accountId ? codexAccountScope(accountId) : undefined;
+    const account = accountId ? accountScope(accountId) : undefined;
     this.account = account;
     const read = account ? this.read() : undefined;
     this.state = read?.kind === "valid" ? read.history.accounts[account!] : undefined;
@@ -124,7 +127,7 @@ export class CodexDailyUsage {
   observe(accountId: string, limits: RateLimits, observedAt = this.now()): RateLimits {
     const observations = limits.filter(validObservation);
     if (!accountId || !finite(observedAt) || observedAt > this.now() || !observations.length) return limits;
-    const account = codexAccountScope(accountId);
+    const account = accountScope(accountId);
     if (account !== this.account) this.state = undefined;
     this.account = account;
 
@@ -213,7 +216,7 @@ export class CodexDailyUsage {
       const tracked = window.key ? state.windows[window.key] : undefined;
       if (!tracked
         || (tracked.durationMs !== undefined && window.durationMs !== undefined && tracked.durationMs !== window.durationMs)
-        || (tracked.resetAt !== undefined && window.resetAt !== undefined && tracked.resetAt !== window.resetAt)) return window;
+        || (tracked.resetAt !== undefined && window.resetAt !== undefined && Math.abs(tracked.resetAt - window.resetAt) > RESET_JITTER_MS)) return window;
       return { ...window, dailyUsed: tracked.dailyUsed };
     });
   }
