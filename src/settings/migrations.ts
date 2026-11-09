@@ -156,10 +156,6 @@ export function migrateLegacySettings(legacy: unknown): Partial<StatuslineSettin
     pending: merged.extras.pending,
   };
 
-  // Timing: providerTracking refresh interval would be in provider defaults
-  // (legacy had no timing config, use defaults)
-  result.timing = structuredClone(DEFAULT_STATUSLINE_SETTINGS.timing);
-
   // Bars, thresholds remain defaults
   result.bars = structuredClone(DEFAULT_STATUSLINE_SETTINGS.bars);
   result.thresholds = structuredClone(DEFAULT_STATUSLINE_SETTINGS.thresholds);

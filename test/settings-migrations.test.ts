@@ -157,21 +157,6 @@ test("migration: no fake provider adapter created", () => {
   assert.equal(typeof migrated.providers?.records["fake-adapter-provider"], "object");
 });
 
-test("migration: refresh interval < 10s normalized to 10000 (via defaults)", () => {
-  // Legacy had no timing config, so defaults apply
-  const legacy = {
-    footerEnabled: true,
-    segments: {},
-    extras: {},
-    providerTracking: { enabled: true, selected: {}, order: [], metrics: {}, overrides: {} },
-  };
-
-  const migrated = migrateLegacySettings(legacy);
-  // Timing comes from defaults
-  assert.equal(migrated.timing?.refreshIntervalMs, 10000);
-  assert.equal(migrated.timing?.maxCacheAgeMs, 300000);
-});
-
 test("migration: explicit save durability - migration returns partial for caller to persist", () => {
   const legacy = {
     footerEnabled: false,
@@ -194,9 +179,9 @@ test("migration: output does not alias the singleton defaults", () => {
   migrated.icons!.symbols["poison"] = "X";
   migrated.icons!.providers["evil"] = { mode: "custom", value: "Y" };
   migrated.separators!.main = "|";
-  migrated.timing!.refreshIntervalMs = 1;
+  migrated.bars!.width = 1;
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.icons.symbols["poison"], undefined);
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.icons.providers["evil"], undefined);
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.separators.main, " >");
-  assert.equal(DEFAULT_STATUSLINE_SETTINGS.timing.refreshIntervalMs, 10000);
+  assert.notEqual(DEFAULT_STATUSLINE_SETTINGS.bars.width, 1);
 });

@@ -148,7 +148,6 @@ test("storage: read future version -> readOnly true, returned unchanged", () => 
       segments: { project: false, model: false, effort: false, context: false, session: false, throughput: false, time: false },
       bars: { width: 20, fill: "#", empty: "-", capLeft: "[", capRight: "]", showPercent: false, style: "block", truecolor: false, warnAt: 50, critAt: 75 },
       thresholds: { contextWarn: 50, contextCrit: 75 },
-      timing: { refreshIntervalMs: 5000, maxCacheAgeMs: 10000 },
       icons: { style: "ascii", symbols: {}, providers: {} },
       preview: { mode: "narrow" },
     };
@@ -163,21 +162,22 @@ test("storage: read future version -> readOnly true, returned unchanged", () => 
   }
 });
 
-test("storage: interval/maxAge normalization in defaults/validation", () => {
+test("storage: maxCacheAge below the floor is normalized on save", () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-statusline-storage-"));
   const path = join(dir, "statusline.json");
   try {
-    // Save with invalid timing
     const settings = {
       ...DEFAULT_STATUSLINE_SETTINGS,
-      timing: { refreshIntervalMs: 100, maxCacheAgeMs: 50 },
+      providers: {
+        ...DEFAULT_STATUSLINE_SETTINGS.providers,
+        defaults: { ...DEFAULT_STATUSLINE_SETTINGS.providers.defaults, maxCacheAgeMs: 50 },
+      },
     };
     saveStatuslineSettings(settings, path);
 
     const content = readFileSync(path, "utf8");
     const parsed = JSON.parse(content);
-    assert.equal(parsed.timing.refreshIntervalMs, 10000); // Min 10000
-    assert.equal(parsed.timing.maxCacheAgeMs, 10000); // >= refreshIntervalMs
+    assert.equal(parsed.providers.defaults.maxCacheAgeMs, 10000); // floor
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

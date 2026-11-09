@@ -21,7 +21,6 @@ test("schema: new provider reconciliation - adding provider with no prior config
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };
@@ -51,7 +50,6 @@ test("schema: existing order preserved when new provider added", () => {
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };
@@ -79,7 +77,6 @@ test("schema: string-keyed Records everywhere - no fixed provider-name unions", 
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };
@@ -114,7 +111,6 @@ test("schema: string-keyed Records for windows - no array-index window positions
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };
@@ -151,7 +147,6 @@ test("schema: activeModel three-state values", () => {
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };
@@ -182,7 +177,6 @@ test("schema: displayMode default vs custom", () => {
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };
@@ -209,7 +203,6 @@ test("schema: provider icon override", () => {
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };
@@ -238,7 +231,6 @@ test("schema: thresholds per-provider optional override", () => {
     segments: DEFAULT_STATUSLINE_SETTINGS.segments,
     bars: DEFAULT_STATUSLINE_SETTINGS.bars,
     thresholds: DEFAULT_STATUSLINE_SETTINGS.thresholds,
-    timing: DEFAULT_STATUSLINE_SETTINGS.timing,
     icons: DEFAULT_STATUSLINE_SETTINGS.icons,
     preview: DEFAULT_STATUSLINE_SETTINGS.preview,
   };

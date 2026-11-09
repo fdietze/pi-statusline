@@ -1,12 +1,11 @@
 import type { MissingDataPolicy, StatuslineSettings } from "./schema.ts";
 import type { ProviderCapability } from "./providers/capabilities.ts";
 
-/** Minimum refresh cadence and floor for cache age (matches the 10s/5min contract). */
-const MIN_INTERVAL_MS = 10_000;
+/** Floor for the configurable cache age. The poll cadence is fixed in src/providers.ts. */
+export const MIN_CACHE_AGE_MS = 10_000;
 
 /** Per-provider refresh/cache policy resolved from settings (R18). */
 export interface RefreshPolicy {
-  intervalMs: number;
   maxAgeMs: number;
   useCache: boolean;
   keepAfterFailure: boolean;
@@ -37,16 +36,11 @@ export function resolveProviderRefreshPolicy(
 ): RefreshPolicy {
   const defaults = settings.providers.defaults;
   const override = settings.providers.records[providerId]?.refresh;
-  const requestedInterval = override?.refreshIntervalMs ?? defaults.refreshIntervalMs;
-  const intervalMs = Number.isFinite(requestedInterval)
-    ? Math.min(86_400_000, Math.max(MIN_INTERVAL_MS, Math.floor(requestedInterval)))
-    : MIN_INTERVAL_MS;
   const requestedMaxAge = override?.maxCacheAgeMs ?? defaults.maxCacheAgeMs;
   const maxAgeMs = Number.isFinite(requestedMaxAge)
-    ? Math.min(604_800_000, Math.max(intervalMs, Math.floor(requestedMaxAge)))
-    : intervalMs;
+    ? Math.min(604_800_000, Math.max(MIN_CACHE_AGE_MS, Math.floor(requestedMaxAge)))
+    : MIN_CACHE_AGE_MS;
   return {
-    intervalMs,
     maxAgeMs,
     useCache: override?.useCache ?? defaults.useCache,
     keepAfterFailure: override?.keepAfterFailure ?? defaults.keepAfterFailure,

@@ -50,7 +50,6 @@ function defaultProviderConfig(): ProviderConfiguration {
 const DEFAULT_PROVIDER_DEFAULTS: ProviderDefaults = {
   displayMode: "default",
   missingDataPolicy: "cached",
-  refreshIntervalMs: 10000,
   maxCacheAgeMs: 300000,
   useCache: true,
   keepAfterFailure: true,
@@ -90,12 +89,6 @@ const DEFAULT_BARS = {
 const DEFAULT_THRESHOLDS = {
   contextWarn: 80,
   contextCrit: 95,
-};
-
-/** Default timing. */
-const DEFAULT_TIMING = {
-  refreshIntervalMs: 10000,
-  maxCacheAgeMs: 300000,
 };
 
 /** Default icons. */
@@ -152,7 +145,7 @@ const DEFAULT_SEGMENTS: Record<SegmentId, boolean> = {
  * - bars: rounded width 12, fill '█', empty '░', rounded caps, showPercent true
  * - providerRows: 'newline' (one provider per line)
  * - thresholds: 80/95 warning/critical
- * - refreshIntervalMs: 10000 (min 10000), maxCacheAgeMs: 300000
+ * - provider maxCacheAgeMs: 300000
  * - icon style: 'emoji'
  * - separators main: ' >' with one space after it
  */
@@ -165,7 +158,6 @@ export const DEFAULT_STATUSLINE_SETTINGS: StatuslineSettings = {
   segments: DEFAULT_SEGMENTS,
   bars: DEFAULT_BARS,
   thresholds: DEFAULT_THRESHOLDS,
-  timing: DEFAULT_TIMING,
   icons: DEFAULT_ICONS,
   preview: DEFAULT_PREVIEW,
   extras: DEFAULT_EXTRAS,

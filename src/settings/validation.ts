@@ -3,6 +3,7 @@ import { CURRENT_VERSION } from "./schema.ts";
 import { DEFAULT_STATUSLINE_SETTINGS } from "./defaults.ts";
 import { SEGMENT_ORDER } from "../segments.ts";
 import { migrateVersionOneSettings } from "./migrations.ts";
+import { MIN_CACHE_AGE_MS } from "./refresh.ts";
 
 const VALID_SEGMENT_IDS = new Set<string>(SEGMENT_ORDER);
 
@@ -28,6 +29,7 @@ const KNOWN_TOP_LEVEL_FIELDS = new Set([
   "segments",
   "bars",
   "thresholds",
+  // Retired: dropped on load instead of being carried along in __unknown.
   "timing",
   "icons",
   "preview",
@@ -49,6 +51,7 @@ const KNOWN_PROVIDER_FIELDS = new Set([
 
 /** Known refresh override fields. */
 const KNOWN_REFRESH_FIELDS = new Set([
+  // Retired: dropped on load instead of being carried along in __unknown.
   "refreshIntervalMs",
   "maxCacheAgeMs",
   "useCache",
@@ -135,20 +138,14 @@ function parseProviderDefaults(value: unknown): StatuslineSettings["providers"][
     ["hide", "cached", "na", "warning", "provider-name"].includes(input.missingDataPolicy as string)
       ? (input.missingDataPolicy as StatuslineSettings["providers"]["defaults"]["missingDataPolicy"])
       : "cached";
-  const refreshIntervalMs = clamp(
-    typeof input.refreshIntervalMs === "number" ? input.refreshIntervalMs : 10000,
-    10000,
-    86400000
-  );
   const maxCacheAgeMs = clamp(
     typeof input.maxCacheAgeMs === "number" ? input.maxCacheAgeMs : 300000,
-    refreshIntervalMs,
+    MIN_CACHE_AGE_MS,
     604800000
   );
   return {
     displayMode,
     missingDataPolicy,
-    refreshIntervalMs,
     maxCacheAgeMs,
     useCache: typeof input.useCache === "boolean" ? input.useCache : true,
     keepAfterFailure: typeof input.keepAfterFailure === "boolean" ? input.keepAfterFailure : true,
@@ -209,15 +206,8 @@ function parseProviderConfig(value: unknown): StatuslineSettings["providers"]["r
   if (input.refresh && typeof input.refresh === "object") {
     const source = input.refresh as Record<string, unknown>;
     refresh = {};
-    if (typeof source.refreshIntervalMs === "number" && Number.isFinite(source.refreshIntervalMs)) {
-      refresh.refreshIntervalMs = clamp(Math.floor(source.refreshIntervalMs), 10_000, 86_400_000);
-    }
     if (typeof source.maxCacheAgeMs === "number" && Number.isFinite(source.maxCacheAgeMs)) {
-      refresh.maxCacheAgeMs = clamp(
-        Math.floor(source.maxCacheAgeMs),
-        refresh.refreshIntervalMs ?? 10_000,
-        604_800_000,
-      );
+      refresh.maxCacheAgeMs = clamp(Math.floor(source.maxCacheAgeMs), MIN_CACHE_AGE_MS, 604_800_000);
     }
     for (const key of ["useCache", "keepAfterFailure", "refreshWhileActive", "refreshDisabledProvider"] as const) {
       if (typeof source[key] === "boolean") refresh[key] = source[key];
@@ -365,14 +355,6 @@ function parseThresholds(value: unknown): StatuslineSettings["thresholds"] {
   return { contextWarn: warn < crit ? warn : 80, contextCrit: warn < crit ? crit : 95 };
 }
 
-/** Parse timing settings. */
-function parseTiming(value: unknown): StatuslineSettings["timing"] {
-  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const refreshIntervalMs = clamp(typeof input.refreshIntervalMs === "number" ? input.refreshIntervalMs : 10000, 10000, 86400000);
-  const maxCacheAgeMs = clamp(typeof input.maxCacheAgeMs === "number" ? input.maxCacheAgeMs : 300000, refreshIntervalMs, 604800000);
-  return { refreshIntervalMs, maxCacheAgeMs };
-}
-
 /** Parse icons settings. */
 function parseIcons(value: unknown): StatuslineSettings["icons"] {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -468,7 +450,6 @@ export function parseStatuslineSettings(unknown: unknown): ParsedSettings {
   const segments = parseSegments(input.segments);
   const bars = parseBars(input.bars);
   const thresholds = parseThresholds(input.thresholds);
-  const timing = parseTiming(input.timing);
   const icons = parseIcons(input.icons);
   const preview = parsePreview(input.preview);
   const extras = parseExtras(input.extras);
@@ -521,7 +502,6 @@ export function parseStatuslineSettings(unknown: unknown): ParsedSettings {
       segments,
       bars,
       thresholds,
-      timing,
       icons,
       preview,
       extras,

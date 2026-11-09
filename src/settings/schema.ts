@@ -59,7 +59,6 @@ export interface WindowConfiguration {
 
 /** Sparse per-provider refresh/cache overrides. */
 export interface ProviderRefreshOverrides {
-  refreshIntervalMs?: number;
   maxCacheAgeMs?: number;
   useCache?: boolean;
   keepAfterFailure?: boolean;
@@ -109,8 +108,6 @@ export interface ProviderDefaults {
   displayMode: ProviderDisplayMode;
   /** Default missing data policy. */
   missingDataPolicy: MissingDataPolicy;
-  /** Default refresh interval ms (min 10000). */
-  refreshIntervalMs: number;
   /** Default max cache age ms. */
   maxCacheAgeMs: number;
   /** Use cache by default. */
@@ -198,14 +195,6 @@ export interface ThresholdsSettings {
   contextCrit: number;
 }
 
-/** Timing and cache configuration. */
-export interface TimingSettings {
-  /** Footer refresh interval ms (min 10000). */
-  refreshIntervalMs: number;
-  /** Maximum cache age ms (finite, >= refreshIntervalMs). */
-  maxCacheAgeMs: number;
-}
-
 /** Icon configuration. */
 export interface IconsSettings {
   /** Global icon style. */
@@ -248,8 +237,6 @@ export interface StatuslineSettings {
   bars: BarsSettings;
   /** Threshold settings. */
   thresholds: ThresholdsSettings;
-  /** Timing settings. */
-  timing: TimingSettings;
   /** Icon settings. */
   icons: IconsSettings;
   /** Preview settings. */

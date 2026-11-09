@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  MIN_CACHE_AGE_MS,
   resolveProviderRefreshPolicy,
   resolveRefreshEligibility,
   resolveRefreshHealth,
@@ -28,18 +29,16 @@ const unauthCap: ProviderCapability = {
   unavailableReason: "authentication required",
 };
 
-test("policy: interval floored at 10000, maxAge >= interval", () => {
+test("policy: maxAge floored at MIN_CACHE_AGE_MS", () => {
   const s = settingsWith({
-    providers: { ...DEFAULT_STATUSLINE_SETTINGS.providers, defaults: { ...DEFAULT_STATUSLINE_SETTINGS.providers.defaults, refreshIntervalMs: 5_000, maxCacheAgeMs: 100 } },
+    providers: { ...DEFAULT_STATUSLINE_SETTINGS.providers, defaults: { ...DEFAULT_STATUSLINE_SETTINGS.providers.defaults, maxCacheAgeMs: 100 } },
   });
   const policy = resolveProviderRefreshPolicy(s, "anthropic", officialCap);
-  assert.equal(policy.intervalMs, 10_000);
-  assert.ok(policy.maxAgeMs >= policy.intervalMs);
+  assert.equal(policy.maxAgeMs, MIN_CACHE_AGE_MS);
 });
 
 test("policy: passes through defaults when in range", () => {
   const policy = resolveProviderRefreshPolicy(DEFAULT_STATUSLINE_SETTINGS, "anthropic", officialCap);
-  assert.equal(policy.intervalMs, 10_000);
   assert.equal(policy.maxAgeMs, 300_000);
   assert.equal(policy.useCache, true);
   assert.equal(policy.keepAfterFailure, true);
@@ -106,11 +105,11 @@ test("policy: sparse provider overrides resolve over globals and stay bounded", 
   s.providers.records.dynamic = {
     ...createProviderConfig(),
     missingDataPolicy: "warning",
-    refresh: { refreshIntervalMs: 20_000, maxCacheAgeMs: 10_000, useCache: false, refreshDisabledProvider: true },
+    refresh: { maxCacheAgeMs: 20_000, useCache: false, refreshDisabledProvider: true },
   };
   const policy = resolveProviderRefreshPolicy(s, "dynamic", officialCap);
   assert.deepEqual(policy, {
-    intervalMs: 20_000, maxAgeMs: 20_000, useCache: false, keepAfterFailure: true,
+    maxAgeMs: 20_000, useCache: false, keepAfterFailure: true,
     refreshWhileActive: true, refreshDisabledProvider: true,
   });
 });

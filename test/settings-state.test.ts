@@ -16,7 +16,6 @@ test("state: createDraft creates structuredClone deep copy", () => {
   assert.notStrictEqual(draft.segments, original.segments);
   assert.notStrictEqual(draft.bars, original.bars);
   assert.notStrictEqual(draft.thresholds, original.thresholds);
-  assert.notStrictEqual(draft.timing, original.timing);
   assert.notStrictEqual(draft.icons, original.icons);
   assert.notStrictEqual(draft.preview, original.preview);
 
@@ -36,7 +35,6 @@ test("state: mutating draft does not change source or DEFAULT_STATUSLINE_SETTING
   draft.segments.project = false;
   draft.bars.width = 20;
   draft.thresholds.contextWarn = 70;
-  draft.timing.refreshIntervalMs = 20000;
   draft.icons.style = "ascii";
   draft.preview.mode = "narrow";
 
@@ -49,7 +47,6 @@ test("state: mutating draft does not change source or DEFAULT_STATUSLINE_SETTING
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.segments.project, true);
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.bars.width, 12);
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.thresholds.contextWarn, 80);
-  assert.equal(DEFAULT_STATUSLINE_SETTINGS.timing.refreshIntervalMs, 10000);
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.icons.style, "emoji");
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.preview.mode, "current");
 });
@@ -137,7 +134,6 @@ test("state: resetAll changes draft only", () => {
   draft.segments.project = false;
   draft.bars.width = 20;
   draft.thresholds.contextWarn = 70;
-  draft.timing.refreshIntervalMs = 20000;
   draft.icons.style = "ascii";
   draft.preview.mode = "narrow";
 
@@ -150,7 +146,6 @@ test("state: resetAll changes draft only", () => {
   assert.equal(draft.segments.project, true);
   assert.equal(draft.bars.width, 12);
   assert.equal(draft.thresholds.contextWarn, 80);
-  assert.equal(draft.timing.refreshIntervalMs, 10000);
   assert.equal(draft.icons.style, "emoji");
   assert.equal(draft.preview.mode, "current");
 });

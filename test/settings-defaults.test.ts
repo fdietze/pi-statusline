@@ -13,7 +13,6 @@ test("defaults: DEFAULT_STATUSLINE_SETTINGS has expected shape and version", () 
   assert.ok(DEFAULT_STATUSLINE_SETTINGS.segments);
   assert.ok(DEFAULT_STATUSLINE_SETTINGS.bars);
   assert.ok(DEFAULT_STATUSLINE_SETTINGS.thresholds);
-  assert.ok(DEFAULT_STATUSLINE_SETTINGS.timing);
   assert.ok(DEFAULT_STATUSLINE_SETTINGS.icons);
   assert.ok(DEFAULT_STATUSLINE_SETTINGS.preview);
 });
@@ -58,11 +57,6 @@ test("defaults: providerRows newline, thresholds 80/95", () => {
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.thresholds.contextCrit, 95);
 });
 
-test("defaults: timing refresh 10000 min, maxCacheAge 300000", () => {
-  assert.equal(DEFAULT_STATUSLINE_SETTINGS.timing.refreshIntervalMs, 10000);
-  assert.equal(DEFAULT_STATUSLINE_SETTINGS.timing.maxCacheAgeMs, 300000);
-});
-
 test("defaults: emoji icons and spaced main separator", () => {
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.icons.style, "emoji");
   assert.equal(DEFAULT_STATUSLINE_SETTINGS.separators.main, " >");
@@ -92,6 +86,5 @@ test("defaults: createProviderDefaults returns fresh defaults", () => {
   const d1 = createProviderDefaults();
   const d2 = createProviderDefaults();
   assert.notStrictEqual(d1, d2);
-  assert.equal(d1.refreshIntervalMs, 10000);
   assert.equal(d1.maxCacheAgeMs, 300000);
 });

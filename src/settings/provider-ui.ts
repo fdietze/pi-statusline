@@ -1,5 +1,6 @@
 import { createProviderConfig, createWindowConfig } from "./defaults.ts";
 import {
+  MIN_CACHE_AGE_MS,
   resolveProviderMissingDataPolicy,
   resolveProviderRefreshPolicy,
   resolveRefreshEligibility,
@@ -190,7 +191,6 @@ export function setProviderDisplayMode(
     record.missingDataPolicy ??= resolveProviderMissingDataPolicy(draft, providerId);
     const refresh = resolveProviderRefreshPolicy(draft, providerId);
     record.refresh = {
-      refreshIntervalMs: refresh.intervalMs,
       maxCacheAgeMs: refresh.maxAgeMs,
       useCache: refresh.useCache,
       keepAfterFailure: refresh.keepAfterFailure,
@@ -288,17 +288,9 @@ export function setProviderRefreshOverrides(
     return draft;
   }
   const refresh: ProviderRefreshOverrides = { ...overrides };
-  if (refresh.refreshIntervalMs !== undefined) {
-    if (Number.isFinite(refresh.refreshIntervalMs)) {
-      refresh.refreshIntervalMs = Math.min(86_400_000, Math.max(10_000, Math.floor(refresh.refreshIntervalMs)));
-    } else {
-      delete refresh.refreshIntervalMs;
-    }
-  }
-  const interval = refresh.refreshIntervalMs ?? draft.providers.defaults.refreshIntervalMs;
   if (refresh.maxCacheAgeMs !== undefined) {
     if (Number.isFinite(refresh.maxCacheAgeMs)) {
-      refresh.maxCacheAgeMs = Math.min(604_800_000, Math.max(interval, Math.floor(refresh.maxCacheAgeMs)));
+      refresh.maxCacheAgeMs = Math.min(604_800_000, Math.max(MIN_CACHE_AGE_MS, Math.floor(refresh.maxCacheAgeMs)));
     } else {
       delete refresh.maxCacheAgeMs;
     }

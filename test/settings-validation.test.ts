@@ -14,7 +14,6 @@ test("validation: valid parse - full valid doc round-trips", () => {
       defaults: {
         displayMode: "default",
         missingDataPolicy: "cached",
-        refreshIntervalMs: 10000,
         maxCacheAgeMs: 300000,
         useCache: true,
         keepAfterFailure: true,
@@ -90,7 +89,6 @@ test("validation: valid parse - full valid doc round-trips", () => {
       critAt: 95,
     },
     thresholds: { contextWarn: 80, contextCrit: 95 },
-    timing: { refreshIntervalMs: 10000, maxCacheAgeMs: 300000 },
     icons: {
       style: "emoji",
       symbols: {},
@@ -216,14 +214,11 @@ test("validation: invalid - impossible order/width/interval normalized", () => {
   const result = parseStatuslineSettings({
     layout: { maxWidth: -5, segmentOrder: [123, null, ""], narrowPriority: ["context", "context"] },
     bars: { width: 0, warnAt: 200, critAt: -5 },
-    timing: { refreshIntervalMs: 500, maxCacheAgeMs: 100 },
   });
   assert.equal(result.settings.layout.maxWidth, 0);
   assert.equal(result.settings.bars.width, 1); // clamped to min 1
   assert.equal(result.settings.bars.warnAt, 80);
   assert.equal(result.settings.bars.critAt, 95);
-  assert.equal(result.settings.timing.refreshIntervalMs, 10000); // min 10000
-  assert.equal(result.settings.timing.maxCacheAgeMs, 10000); // >= refreshIntervalMs
 
   const inverted = parseStatuslineSettings({ bars: { warnAt: 90, critAt: 20 } });
   assert.equal(inverted.settings.bars.warnAt, 80);
@@ -369,7 +364,6 @@ test("validation: future version - returns readOnly true and unchanged", () => {
     segments: { project: false, model: false, effort: false, context: false, session: false, throughput: false, time: false },
     bars: { width: 20, fill: "#", empty: "-", capLeft: "[", capRight: "]", showPercent: false, style: "block", truecolor: false, warnAt: 50, critAt: 75 },
     thresholds: { contextWarn: 50, contextCrit: 75 },
-    timing: { refreshIntervalMs: 5000, maxCacheAgeMs: 10000 },
     icons: { style: "ascii", symbols: {}, providers: {} },
     preview: { mode: "narrow" },
     customFutureField: "should be preserved",
@@ -389,7 +383,15 @@ test("validation: sparse doc falls back to full defaults (not empty order/segmen
   assert.deepEqual(result.settings.separators, DEFAULT_STATUSLINE_SETTINGS.separators);
   assert.deepEqual(result.settings.bars, DEFAULT_STATUSLINE_SETTINGS.bars);
   assert.deepEqual(result.settings.thresholds, DEFAULT_STATUSLINE_SETTINGS.thresholds);
-  assert.deepEqual(result.settings.timing, DEFAULT_STATUSLINE_SETTINGS.timing);
+});
+
+test("validation: retired timing group is dropped, not preserved as unknown", () => {
+  const { settings } = parseStatuslineSettings({
+    version: CURRENT_VERSION,
+    timing: { refreshIntervalMs: 20_000, maxCacheAgeMs: 40_000 },
+  });
+  assert.equal("timing" in settings, false);
+  assert.equal(settings.__unknown?.timing, undefined);
 });
 
 test("validation: null input returns a clone, not the singleton", () => {
@@ -430,7 +432,8 @@ test("validation: sparse provider missing-data and refresh overrides are bounded
     },
   } } } }).settings.providers.records.dynamic;
   assert.equal(record.missingDataPolicy, "warning");
-  assert.equal(record.refresh?.refreshIntervalMs, 10_000);
+  // Retired key: dropped, not carried along as unknown.
+  assert.equal("refreshIntervalMs" in (record.refresh ?? {}), false);
   assert.equal(record.refresh?.maxCacheAgeMs, undefined);
   assert.equal(record.refresh?.useCache, false);
   assert.deepEqual(record.refresh?.__unknown, { futureRefreshField: "kept" });

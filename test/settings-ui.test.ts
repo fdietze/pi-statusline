@@ -163,7 +163,6 @@ test("provider screen is truthful, capability-gated, and integrated without I/O"
   setProviderIcon(state.draft, "dynamic-a", { mode: "custom", value: "D" });
   setProviderMissingDataPolicy(state.draft, "dynamic-a", "warning");
   setProviderRefreshOverrides(state.draft, "dynamic-a", {
-    refreshIntervalMs: 20_000,
     maxCacheAgeMs: 40_000,
     useCache: false,
     keepAfterFailure: false,
@@ -188,7 +187,7 @@ test("provider screen is truthful, capability-gated, and integrated without I/O"
   assert.deepEqual(detail.providerIcon, { mode: "custom", value: "D" });
   assert.equal(detail.missingDataPolicy, "warning");
   assert.deepEqual(detail.refresh, {
-    intervalMs: 20_000, maxAgeMs: 40_000, useCache: false, keepAfterFailure: false,
+    maxAgeMs: 40_000, useCache: false, keepAfterFailure: false,
     refreshWhileActive: true, refreshDisabledProvider: true,
   });
   assert.equal(detail.refreshNowEligible, true);
@@ -256,12 +255,10 @@ test("display mode and window reconciliation fail closed on invalid adapter keys
 test("refresh/cache draft edits are bounded and reject non-finite ages", () => {
   const draft = structuredClone(DEFAULT_STATUSLINE_SETTINGS);
   setProviderRefreshOverrides(draft, "dynamic-a", {
-    refreshIntervalMs: 5_000,
     maxCacheAgeMs: 1,
     useCache: false,
   });
   assert.deepEqual(draft.providers.records["dynamic-a"].refresh, {
-    refreshIntervalMs: 10_000,
     maxCacheAgeMs: 10_000,
     useCache: false,
   });
@@ -352,7 +349,7 @@ test("display screen exposes working controls and omits inert settings", () => {
   for (const id of [
     "layout.providerRows", "layout.placement", "layout.maxWidth", "separators.window",
     "separators.provider", "separators.iconLabel", "separators.labelValue", "separators.preset",
-    "timing.refreshIntervalMs", "timing.maxCacheAgeMs", "reset.all",
+    "reset.all",
   ]) assert.equal(ids.includes(id), false, `inert or duplicate row must stay hidden: ${id}`);
 
   const select = (id: string) => ({ ...state, selected: buildSeparatorsScreen(state.draft).findIndex((row) => row.id === id) });
@@ -490,7 +487,6 @@ test("root reset row restores every group to default in the draft without touchi
   state.draft.layout.providerRows = "inline";
   state.draft.separators.main = "X";
   state.draft.thresholds.contextWarn = 50;
-  state.draft.timing.refreshIntervalMs = 99_000;
   state.draft.icons.style = "ascii";
   state.draft.preview.mode = "narrow";
 
@@ -504,7 +500,6 @@ test("root reset row restores every group to default in the draft without touchi
   assert.equal(state.draft.separators.main, " >");
   assert.equal(state.draft.bars.width, 12);
   assert.equal(state.draft.thresholds.contextWarn, 80);
-  assert.equal(state.draft.timing.refreshIntervalMs, 10_000);
   assert.equal(state.draft.icons.style, "emoji");
   assert.equal(state.draft.preview.mode, "current");
   // The reset is a draft mutation: the saved original stays intact, so it stays dirty and reversible.
@@ -562,7 +557,6 @@ test("default to custom snapshots every effective provider and window value", ()
   draft.providers.defaults = {
     ...draft.providers.defaults,
     missingDataPolicy: "warning",
-    refreshIntervalMs: 20_000,
     maxCacheAgeMs: 40_000,
     useCache: false,
     keepAfterFailure: false,
@@ -576,7 +570,7 @@ test("default to custom snapshots every effective provider and window value", ()
   assert.equal(record.activeModel.project, "on");
   assert.equal(record.missingDataPolicy, "warning");
   assert.deepEqual(record.refresh, {
-    refreshIntervalMs: 20_000, maxCacheAgeMs: 40_000, useCache: false,
+    maxCacheAgeMs: 40_000, useCache: false,
     keepAfterFailure: false, refreshWhileActive: false, refreshDisabledProvider: true,
   });
   assert.equal(draft.icons.providers["dynamic-a"], undefined);
@@ -600,7 +594,7 @@ test("preview reflects draft mutations and updates when the draft changes", () =
 });
 
 test("long-list navigation: End jumps to last row, Home returns to first; selection stays in bounds", () => {
-  // Separators screen has many rows (segments + extras + layout + separators + bars + thresholds + timing).
+  // Separators screen has many rows (segments + extras + layout + separators + bars + thresholds).
   let state = createSettingsUi(DEFAULT_STATUSLINE_SETTINGS);
   state.selected = 1; // Separators
   state = routeSettingsKey(state, "Enter").state;
