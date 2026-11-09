@@ -9,13 +9,13 @@ A configurable, single-line footer for [pi](https://github.com/earendil-works/pi
 📁 pi-statusline > 🤖 claude-sonnet-5@high > FAST > 🪟  30.2%/200K > 5h ╺━━────────╴ 23% ↻2h14m wk ╺━━━━──────╴ 41% ↻4d6h
 📁 pi-statusline > 🤖 gpt-5@high > 🪟  12.0%/400K
 anthropic 5h ╺━━━━━━━━━━╸ 100% ↻1h44m >wk ╺──────────╴ 12% ↻6d5h
-openai-codex wk ╺━━━━──────╴ 38% ↻4d14h ≈3pp over
+openai-codex wk ╺━━━━──────╴ 38% ↻4d14h ≈3% over
 zai 5h ╶──────────╴ 0% >wk ╺──────────╴ 5% ↻2d19h
 ```
 
 The first line is a local model, the second an Anthropic subscription (quota bars), the third an API-key provider. The last three lines are provider-tracking rows: every provider you select in `/statusline` (not just your active model) gets its own row with its own live usage, so you can compare available capacity across providers without switching. See [Provider tracking](#provider-tracking).
 
-Usage is a thin continuous line with rounded half-line ends and a dark-gray track. Its bright truecolor fill gives a restrained glow, moving smoothly from neon green through vivid orange to blood red as usage rises. Each provider-reported window includes a compact live reset countdown. When Codex also reports the window duration, the footer compares consumed usage with the elapsed share of the window and appends an approximate `over`, `under`, or measured `on pace` value such as `≈0.6pp on pace`. While more than one day is left in a window, it also shows the remaining quota per remaining day, e.g. `≈14pp/d` (59% left, 4d6h to reset); the last day and windows shorter than a day omit it.
+Usage is a thin continuous line with rounded half-line ends and a dark-gray track. Its bright truecolor fill gives a restrained glow, moving smoothly from neon green through vivid orange to blood red as usage rises. Each provider-reported window includes a compact live reset countdown. When Codex also reports the window duration, the footer compares consumed usage with the elapsed share of the window and appends an approximate `over`, `under`, or measured `on pace` value such as `≈0.6% on pace`. While more than one day is left in a window, it also shows the remaining quota per remaining day, e.g. `≈14%/d` (59% left, 4d6h to reset); the last day and windows shorter than a day omit it.
 
 ## Install and develop
 
@@ -90,7 +90,7 @@ Anthropic OAuth fetches its current `5h` and `wk` limits when the session starts
 
 Quota bars and percentages show consumed usage. Codex pace is a separate heuristic: the footer treats `reset_at - limit_window_seconds` as the window start, compares actual consumed percentage with elapsed-window percentage, and marks the result approximate because the service does not explicitly guarantee fixed-window semantics. Pace stays hidden when duration/reset data is absent or invalid or after expiry.
 
-Codex also shows approximate percentage points used during the current operational day (`≈Npp today`), whose local boundary is 05:00. It persists one latest per-account/window baseline in `~/.pi/agent/statusline/quota-history/openai-codex.json`; if pi sleeps through 05:00, the last observation from the preceding day becomes the boundary estimate. First use, multi-day gaps, and incompatible windows quietly start a new baseline, so unobserved use on another machine may be missing. This is deliberately separate from OpenAI's UTC daily token counters, which are tokens rather than subscription-quota percentages.
+Codex also shows the approximate percent of the window quota used during the current operational day (`≈N% today`), whose local boundary is 05:00. It persists one latest per-account/window baseline in `~/.pi/agent/statusline/quota-history/openai-codex.json`; if pi sleeps through 05:00, the last observation from the preceding day becomes the boundary estimate. First use, multi-day gaps, and incompatible windows quietly start a new baseline, so unobserved use on another machine may be missing. This is deliberately separate from OpenAI's UTC daily token counters, which are tokens rather than subscription-quota percentages.
 
 Any other provider you've authenticated (OpenRouter, custom endpoints, …) still appears in the Providers list, but has no adapter yet—pi-statusline only ever uses pi's own stored credentials for that provider. Concretely: OpenRouter's only usage endpoint (`/api/v1/credits`) explicitly rejects the regular inference key pi stores and requires a separate management key pi doesn't manage, so it shows that sanitized reason instead of a row.
 

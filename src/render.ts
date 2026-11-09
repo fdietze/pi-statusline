@@ -183,14 +183,14 @@ function renderSessionBar(settings: StatuslineSettings, provider: string | undef
   const paceText = pace
     ? ` ${paint(
       pace.relation === "over" ? "warning" : pace.relation === "under" ? "success" : "muted",
-      `≈${pace.relation === "on-pace" ? pace.percentagePoints.toFixed(1) : Math.round(pace.percentagePoints)}pp ${pace.relation === "on-pace" ? "on pace" : pace.relation}`,
+      `≈${pace.relation === "on-pace" ? pace.percentagePoints.toFixed(1) : Math.round(pace.percentagePoints)}% ${pace.relation === "on-pace" ? "on pace" : pace.relation}`,
     )}`
     : "";
   const dailyBudget = deriveDailyBudget(window, now);
-  const budgetText = dailyBudget === undefined ? "" : ` ${paint("muted", `≈${formatPercentagePoints(dailyBudget)}pp/d`)}`;
+  const budgetText = dailyBudget === undefined ? "" : ` ${paint("muted", `≈${formatPercentagePoints(dailyBudget)}%/d`)}`;
   const dailyPercentagePoints = window.dailyUsed === undefined ? undefined : window.dailyUsed * 100;
   const dailyText = dailyPercentagePoints !== undefined && Number.isFinite(dailyPercentagePoints) && dailyPercentagePoints >= 0
-    ? ` ${paint("muted", `≈${formatPercentagePoints(dailyPercentagePoints)}pp today`)}`
+    ? ` ${paint("muted", `≈${formatPercentagePoints(dailyPercentagePoints)}% today`)}`
     : "";
   return `${paint("muted", `${display.label} `)}${bar}${reset}${budgetText}${paceText}${dailyText}`;
 }

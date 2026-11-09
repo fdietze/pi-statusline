@@ -77,10 +77,10 @@ test("renderProviderRows: shows explicit over, under, and measured on-pace text"
     windows: [window("over", 0.56), window("under", 0.44), window("even", 0.506)],
   }], undefined, now);
 
-  assert.ok(line!.includes("≈6pp over"), line);
-  assert.ok(line!.includes("≈6pp under"), line);
-  assert.ok(line!.includes("≈0.6pp on pace"), line);
-  assert.equal(line!.includes("pp/d"), false, `windows with under a day left show no pp/d: ${line}`);
+  assert.ok(line!.includes("≈6% over"), line);
+  assert.ok(line!.includes("≈6% under"), line);
+  assert.ok(line!.includes("≈0.6% on pace"), line);
+  assert.equal(line!.includes("%/d"), false, `windows with under a day left show no %/d: ${line}`);
 });
 
 test("renderProviderRows: weekly window shows the remaining points per remaining day", () => {
@@ -91,8 +91,8 @@ test("renderProviderRows: weekly window shows the remaining points per remaining
     windows: [{ ...weekly, resetAt: now + 4.25 * day }, { ...fiveHour, resetAt: now + 3_600_000 }],
   }], undefined, now);
 
-  assert.equal(line!.match(/pp\/d/g)?.length, 1, `only the weekly window: ${line}`);
-  assert.ok(line!.includes("≈14pp/d"), line);
+  assert.equal(line!.match(/%\/d/g)?.length, 1, `only the weekly window: ${line}`);
+  assert.ok(line!.includes("≈14%/d"), line);
 });
 
 test("renderProviderRows: shows approximate operational-day usage without a start timestamp", () => {
@@ -101,7 +101,7 @@ test("renderProviderRows: shows approximate operational-day usage without a star
     windows: [{ ...weekly, dailyUsed: 0.006 }],
   }], undefined, 0);
 
-  assert.ok(line!.includes("≈0.6pp today"), line);
+  assert.ok(line!.includes("≈0.6% today"), line);
   assert.equal(line!.includes("since"), false, line);
 });
 

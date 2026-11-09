@@ -989,7 +989,7 @@ test("tracks every selected provider's usage simultaneously, not just the active
     await new Promise<void>((resolve) => setImmediate(resolve));
     const lines = footer!.render(500);
     assert.ok(lines.some((line) => line.includes("anthropic") && line.includes("5h")), `expected an anthropic row despite Codex being active, got: ${JSON.stringify(lines)}`);
-    assert.ok(lines.some((line) => line.includes("openai-codex") && line.includes("≈0.0pp today")), `expected tracked daily Codex usage, got: ${JSON.stringify(lines)}`);
+    assert.ok(lines.some((line) => line.includes("openai-codex") && line.includes("≈0.0% today")), `expected tracked daily Codex usage, got: ${JSON.stringify(lines)}`);
     assert.equal(existsSync(join(cacheRoot, "quota-history", "openai-codex.json")), true);
   } finally {
     footer?.dispose?.();
