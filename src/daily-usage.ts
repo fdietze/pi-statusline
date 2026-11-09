@@ -180,17 +180,14 @@ export class DailyUsage {
           && Math.abs(observation.resetAt - previous.resetAt) > RESET_JITTER_MS;
         const crossedReset = resetMoved && observation.resetAt! > previous.resetAt!
           && observedAt >= previous.resetAt!;
-        // A different window that was not reached by the clock (e.g. another account) shares no
-        // history with the previous one.
-        if (resetMoved && !crossedReset) {
-          windows[observation.key] = this.baseline(observation, observedAt);
-          continue;
-        }
         windows[observation.key] = {
           used: observation.used,
+          // A reset that moved without the clock reaching it is either a provider whose idle reset
+          // keeps floating forward (Codex at 0% used) or a different account: rebase on the new
+          // usage without counting the jump, and keep the day's tally.
           dailyUsed: previous.dailyUsed + (crossedReset
             ? observation.used
-            : Math.max(0, observation.used - previous.used)),
+            : resetMoved ? 0 : Math.max(0, observation.used - previous.used)),
           observedAt,
           ...(observation.resetAt === undefined
             ? previous.resetAt === undefined ? {} : { resetAt: previous.resetAt }

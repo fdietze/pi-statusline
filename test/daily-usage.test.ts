@@ -255,7 +255,7 @@ test("reload picks up observations another session persisted", () => {
   }
 });
 
-test("a reset that moved without the clock reaching it starts a new baseline", () => {
+test("a reset that moved without the clock reaching it rebases: the jump is not counted, the tally stays", () => {
   const now = { value: localTime(2026, 8, 16, 10) };
   const { tracker, cleanup } = temporaryTracker(now);
   const resetAt = now.value + 3_600_000;
@@ -264,7 +264,31 @@ test("a reset that moved without the clock reaching it starts a new baseline", (
     now.value += 1_000;
     assert.ok(Math.abs(tracker.observe("acct_1", [window(0.15, resetAt + 800)])[0]!.dailyUsed! - 0.05) < 1e-9, "jitter keeps the window");
     now.value += 1_000;
-    assert.equal(tracker.observe("acct_1", [window(0.7, resetAt + 604_800_000)])[0]!.dailyUsed, 0, "another account's window");
+    assert.ok(Math.abs(tracker.observe("acct_1", [window(0.7, resetAt + 604_800_000)])[0]!.dailyUsed! - 0.05) < 1e-9, "another window: no jump counted");
+    now.value += 1_000;
+    assert.ok(Math.abs(tracker.observe("acct_1", [window(0.72, resetAt + 604_800_000)])[0]!.dailyUsed! - 0.07) < 1e-9, "counting resumes relative to the new usage");
+  } finally {
+    cleanup();
+  }
+});
+
+test("an idle window whose reset floats forward on every poll keeps the day's tally", () => {
+  const now = { value: localTime(2026, 8, 16, 10) };
+  const { tracker, cleanup } = temporaryTracker(now);
+  const fiveHours = 5 * 3_600_000;
+  const resetAt = now.value + fiveHours;
+  try {
+    tracker.observe("acct_1", [window(0.1, resetAt, fiveHours)]);
+    now.value += 60_000;
+    tracker.observe("acct_1", [window(0.4, resetAt, fiveHours)]);
+    now.value = resetAt + 1_000;
+    // First poll after expiry: the clock crossed the old reset, the new window starts at 0%.
+    assert.ok(Math.abs(tracker.observe("acct_1", [window(0, now.value + fiveHours, fiveHours)])[0]!.dailyUsed! - 0.3) < 1e-9);
+    for (let poll = 1; poll <= 3; poll++) {
+      now.value += 120_000;
+      const [tracked] = tracker.observe("acct_1", [window(0, now.value + fiveHours, fiveHours)]);
+      assert.ok(Math.abs(tracked!.dailyUsed! - 0.3) < 1e-9, `poll ${poll} keeps the tally`);
+    }
   } finally {
     cleanup();
   }
