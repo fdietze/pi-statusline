@@ -95,6 +95,20 @@ test("renderProviderRows: weekly window shows the remaining points per remaining
   assert.ok(line!.includes("≈14%/d"), line);
 });
 
+test("renderProviderRows: % today comes before the budget and pace so truncation cuts those first", () => {
+  const now = 1_000_000;
+  const day = 86_400_000;
+  const [line] = renderProviderRows(DEFAULT_STATUSLINE_SETTINGS, [{
+    provider: "openai-codex",
+    windows: [{ ...weekly, resetAt: now + 4.25 * day, durationMs: 7 * day, dailyUsed: 0.03 }],
+  }], undefined, now);
+
+  const order = ["↻", "% today", "%/d", "pace", "over", "under"].map((text) => line!.indexOf(text)).filter((i) => i >= 0);
+  assert.ok(line!.includes("≈3% today") && line!.includes("%/d"), line);
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), line);
+  assert.ok(line!.indexOf("% today") < line!.indexOf("%/d"), line);
+});
+
 test("renderProviderRows: shows approximate operational-day usage without a start timestamp", () => {
   const [line] = renderProviderRows(DEFAULT_STATUSLINE_SETTINGS, [{
     provider: "openai-codex",

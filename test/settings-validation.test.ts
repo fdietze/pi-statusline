@@ -11,15 +11,6 @@ test("validation: valid parse - full valid doc round-trips", () => {
     providers: {
       enabled: true,
       order: ["anthropic", "openai-codex"],
-      defaults: {
-        displayMode: "default",
-        missingDataPolicy: "cached",
-        maxCacheAgeMs: 300000,
-        useCache: true,
-        keepAfterFailure: true,
-        refreshWhileActive: true,
-        refreshDisabledProvider: false,
-      },
       records: {
         anthropic: {
           enabled: true,

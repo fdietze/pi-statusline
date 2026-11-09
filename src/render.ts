@@ -192,7 +192,7 @@ function renderSessionBar(settings: StatuslineSettings, provider: string | undef
   const dailyText = dailyPercentagePoints !== undefined && Number.isFinite(dailyPercentagePoints) && dailyPercentagePoints >= 0
     ? ` ${paint("muted", `≈${formatPercentagePoints(dailyPercentagePoints)}% today`)}`
     : "";
-  return `${paint("muted", `${display.label} `)}${bar}${reset}${budgetText}${paceText}${dailyText}`;
+  return `${paint("muted", `${display.label} `)}${bar}${reset}${dailyText}${budgetText}${paceText}`;
 }
 
 /** One provider's data for a tracking row (caller pre-filters order/enabled/health). */

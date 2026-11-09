@@ -1,12 +1,9 @@
 import type { StatuslineSettings } from "./schema.ts";
 import type { ProviderCapability } from "./providers/capabilities.ts";
 
-export type RefreshHealthState = "fresh" | "stale" | "unknown";
-
+/** Whether the provider's latest usage is fresh (src/providers.ts hides stale usage). */
 export interface RefreshHealth {
-  state: RefreshHealthState;
-  /** Sanitized reason for stale/unknown (never a secret or raw error). */
-  reason?: string;
+  state: "fresh" | "unknown";
 }
 
 /**

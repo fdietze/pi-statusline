@@ -43,10 +43,10 @@ const KNOWN_PROVIDER_FIELDS = new Set([
   "activeModel",
   "thresholds",
   "icon",
+  "supportedOverrides",
   // Retired: dropped on load instead of being carried along in __unknown.
   "missingDataPolicy",
   "refresh",
-  "supportedOverrides",
 ]);
 
 /** Known window fields. */
